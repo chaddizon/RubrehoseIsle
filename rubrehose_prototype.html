@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rubrehose Island — Prototype v2</title>
+<style>
+  :root{
+    --cream:#F4EFE0; --ink:#1a1a1a; --purple:#7F77DD; --purple-dk:#3C3489;
+    --teal:#1D9E75; --teal-dk:#085041; --pink:#D4537E; --pink-dk:#72243E;
+    --coral:#D85A30; --gray:#888780; --graybg:#D3D1C7; --green:#639922; --green-dk:#27500A;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--ink); color:var(--ink); display:flex; justify-content:center;
+    padding:16px 0 60px;
+  }
+  #app{ width:100%; max-width:420px; background:var(--cream); border-radius:20px; overflow:hidden; }
+
+  header{ background:var(--ink); color:var(--cream); padding:10px 14px; position:sticky; top:0; z-index:10;}
+  header h1{ margin:0 0 6px; font-size:14px; letter-spacing:0.4px; }
+  .resbar{ display:flex; flex-wrap:wrap; gap:6px; }
+  .res-pill{
+    background:var(--cream); color:var(--ink); border-radius:20px; padding:3px 10px;
+    font-size:11px; font-weight:600; display:flex; gap:5px; align-items:center;
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .completion{ font-size:10px; color:#cfcfc0; margin-top:4px; }
+
+  .tabs{ display:flex; background:#00000010; overflow-x:auto; }
+  .tab{ padding:10px 12px; font-size:11px; font-weight:600; color:#5F5E5A; white-space:nowrap; cursor:pointer; border-bottom:3px solid transparent;}
+  .tab.active{ color:var(--ink); border-bottom-color:var(--ink); }
+
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  section{ padding:14px; border-bottom:2px solid #00000012; }
+  h2{ font-size:13px; text-transform:uppercase; letter-spacing:0.6px; margin:0 0 10px; color:#5F5E5A; }
+
+  .scene{
+    border-radius:14px; padding:14px; margin-bottom:10px; color:var(--cream);
+    background:linear-gradient(180deg,var(--purple) 0%, var(--purple) 55%, var(--teal-dk) 55%, var(--teal-dk) 100%);
+  }
+  .scene .tag{ background:var(--cream); color:var(--ink); display:inline-block; padding:3px 10px; border-radius:8px; font-size:11px; font-weight:600; margin-bottom:8px;}
+  .cove-line{ font-size:12px; opacity:0.9; margin-bottom:6px; }
+  .bar{ background:#00000030; border-radius:6px; height:8px; overflow:hidden; margin-bottom:10px;}
+  .bar > div{ height:100%; background:var(--cream); }
+
+  button{
+    font-family:inherit; border:none; cursor:pointer; border-radius:12px; font-weight:600;
+    transition:transform .06s ease;
+  }
+  button:active{ transform:scale(0.96); }
+  .btn-tap{ width:100%; padding:16px; background:var(--ink); color:var(--cream); font-size:15px; letter-spacing:0.4px; }
+  .row{ display:flex; gap:8px; margin-top:8px; }
+  .btn-sm{ flex:1; padding:10px; font-size:12px; }
+  .btn-pink{ background:var(--pink); color:#4B1528; }
+  .btn-purple{ background:#EEEDFE; color:var(--purple-dk); border:2px solid var(--purple); }
+  .btn-teal{ background:var(--teal); color:var(--teal-dk); }
+  .btn-coral{ background:var(--coral); color:#4A1B0C; }
+  .btn-green{ background:var(--green); color:#fff; }
+  .btn-dark{ background:var(--ink); color:var(--cream); }
+  .btn-disabled{ background:var(--graybg)!important; color:#888!important; border:none!important; cursor:not-allowed; }
+
+  .crew-item, .cons-item, .art-item, .grove-item, .bottle-item{
+    background:#fff8; border-radius:10px; padding:8px 10px; margin-bottom:6px; font-size:12px;
+  }
+  .crew-item, .cons-item, .art-item{ display:flex; justify-content:space-between; align-items:center; }
+  .crew-item .info b, .art-item .info b{ display:block; font-size:12px; }
+  .crew-item .info span, .art-item .info span{ color:#5F5E5A; font-size:10.5px; }
+  .crew-item button, .cons-item button, .art-item button{ padding:6px 10px; font-size:11px; flex-shrink:0; margin-left:8px;}
+
+  .grove-item .info{ display:flex; justify-content:space-between; margin-bottom:4px; }
+  .stat-row{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px;}
+  .stat-row button{ padding:4px 10px; font-size:14px; }
+
+  #fightModal{
+    position:fixed; inset:0; background:#000000aa; display:none; align-items:center; justify-content:center; z-index:50;
+  }
+  #fightModal.show{ display:flex; }
+  .fightbox{ width:88%; max-width:360px; background:var(--cream); border-radius:16px; padding:18px; text-align:center; }
+  .fightbox h3{ margin:0 0 6px; }
+  .serpent-hp-bar{ background:var(--graybg); border-radius:8px; height:16px; overflow:hidden; margin:10px 0; }
+  .serpent-hp-bar > div{ height:100%; background:var(--coral); transition:width .1s; }
+  .fight-timer{ font-size:28px; font-weight:700; margin:6px 0; }
+  .log{ font-size:11px; color:#5F5E5A; min-height:16px; margin-top:6px;}
+
+  #debugPanel{ font-size:11px; }
+  #debugPanel label{ display:block; margin:8px 0 3px; color:#5F5E5A; }
+  #debugPanel input[type=range]{ width:100%; }
+  #debugPanel select{ width:100%; padding:6px; border-radius:8px; border:1px solid var(--graybg); }
+  .toggle-debug{ background:none; border:1px solid var(--ink); color:var(--ink); padding:6px 12px; font-size:11px; border-radius:8px; }
+
+  .prestige-box{ background:#EEEDFE; border:2px solid var(--purple); border-radius:12px; padding:12px; text-align:center;}
+  .prestige-box b{ display:block; font-size:16px; color:var(--purple-dk); margin-bottom:4px;}
+
+  .milestone{ font-size:11px; padding:6px 0; display:flex; justify-content:space-between; border-bottom:1px solid #00000010; }
+  .milestone.done{ color:var(--teal-dk); font-weight:600; }
+
+  #offlineToast{
+    position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--cream);
+    padding:10px 16px; border-radius:12px; font-size:12px; z-index:100; display:none; max-width:340px; text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="offlineToast"></div>
+<div id="app">
+  <header>
+    <h1>Rubrehose Island — Prototype v2</h1>
+    <div class="resbar" id="resbar"></div>
+    <div class="completion" id="completionLine">0% restored</div>
+  </header>
+
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-tab="main">Island</div>
+    <div class="tab" data-tab="tidepool">Tidepooling</div>
+    <div class="tab" data-tab="forage">Foraging</div>
+    <div class="tab" data-tab="bottle">Bottles</div>
+    <div class="tab" data-tab="artifacts">Artifacts</div>
+    <div class="tab" data-tab="milestones">Milestones</div>
+  </div>
+
+  <div class="panel active" id="panel-main">
+    <section>
+      <div class="scene">
+        <div class="tag" id="biomeTag">Wreck Beach</div>
+        <div class="cove-line" id="coveLine">Landing Cove · 0/5 clears</div>
+        <div class="bar"><div id="coveBar" style="width:0%"></div></div>
+        <button class="btn-tap" id="tapBtn">TAP THE SHORE (+<span id="tapAmt">1</span>)</button>
+        <div class="row">
+          <button class="btn-pink btn-sm" id="bottleBurstBtn">Toss bottle (burst)</button>
+          <button class="btn-coral btn-sm" id="fightBtn">Fight serpent</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Crew</h2>
+      <div id="crewList"></div>
+    </section>
+    <section>
+      <h2>Upgrades</h2>
+      <div id="upgradeList"></div>
+    </section>
+    <section id="constructionSection">
+      <h2>Construction gate — next biome</h2>
+      <div id="constructionInfo"></div>
+    </section>
+    <section>
+      <h2>Prestige — Tuggy's Supply Run</h2>
+      <div class="prestige-box">
+        <b id="shardPreview">+0 Compass Shards</b>
+        <div style="font-size:11px;color:#5F5E5A;margin-bottom:8px;">Resets tap power, crew levels & current driftwood. Keeps all biome/zone progress.</div>
+        <button class="btn-dark btn-sm" id="prestigeBtn" style="width:100%;">Set Sail</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-tidepool">
+    <section>
+      <h2>Tidepooling <span style="font-weight:400;color:#888;">(unlocks in The Shallows)</span></h2>
+      <div id="tidepoolLock" style="font-size:12px;color:#5F5E5A;"></div>
+      <div id="tidepoolContent" style="display:none;">
+        <button class="btn-teal" id="tidepoolTapBtn" style="width:100%;padding:14px;">Poke the tidepool (+<span id="tidepoolAmt">1</span> shells)</button>
+        <div style="font-size:11px;color:#5F5E5A;margin:10px 0 4px;">Tidepool level: <b id="tidepoolLevel">0</b> · Points to spend: <b id="tidepoolPoints">0</b></div>
+        <div class="stat-row"><span>Grip (find rate)</span><span><button class="btn-purple" data-stat="grip">−</button> <b id="statGrip">0</b> <button class="btn-purple" data-stat="grip+">+</button></span></div>
+        <div class="stat-row"><span>Patience (offline gain)</span><span><button class="btn-purple" data-stat="patience">−</button> <b id="statPatience">0</b> <button class="btn-purple" data-stat="patience+">+</button></span></div>
+        <div class="stat-row"><span>Luck (totem chance)</span><span><button class="btn-purple" data-stat="luck">−</button> <b id="statLuck">0</b> <button class="btn-purple" data-stat="luck+">+</button></span></div>
+        <h2 style="margin-top:14px;">Totems</h2>
+        <div id="totemList"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-forage">
+    <section>
+      <h2>Foraging <span style="font-weight:400;color:#888;">(unlocks in The Green)</span></h2>
+      <div id="forageLock" style="font-size:12px;color:#5F5E5A;"></div>
+      <div id="forageContent" style="display:none;">
+        <div id="groveList"></div>
+        <h2 style="margin-top:14px;">Recipes</h2>
+        <div id="recipeList"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-bottle">
+    <section>
+      <h2>Message in a Bottle</h2>
+      <div style="font-size:11px;color:#5F5E5A;margin-bottom:8px;">Cast bottles out, they wash back at random. Watch the tide — rarer hauls appear on tide changes.</div>
+      <button class="btn-pink" id="castBottleBtn" style="width:100%;padding:12px;">Cast a bottle</button>
+      <div id="bottleList" style="margin-top:10px;"></div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-artifacts">
+    <section>
+      <h2>Artifacts <span style="font-weight:400;color:#888;">(spend Compass Shards)</span></h2>
+      <div id="artifactList"></div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-milestones">
+    <section>
+      <h2>Milestones</h2>
+      <div id="milestoneList"></div>
+    </section>
+  </div>
+
+  <section>
+    <button class="toggle-debug" id="toggleDebug">Debug / Test tools</button>
+    <div id="debugPanel" style="display:none; margin-top:10px;">
+      <label>Speed multiplier: <span id="multVal">10</span>x</label>
+      <input type="range" id="multSlider" min="1" max="200" value="10">
+      <label>Jump to biome (instantly unlock up to):</label>
+      <select id="jumpBiome"></select>
+      <div class="row">
+        <button class="btn-purple btn-sm" id="simOfflineBtn">Simulate 8h offline</button>
+        <button class="btn-purple btn-sm" id="resetBtn">Reset save</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="fightModal">
+  <div class="fightbox">
+    <h3 id="fightName">Hatchling</h3>
+    <div style="font-size:12px;color:#5F5E5A;" id="fightStats"></div>
+    <div class="serpent-hp-bar"><div id="fightHpBar" style="width:100%"></div></div>
+    <div class="fight-timer" id="fightTimer">30.0s</div>
+    <button class="btn-coral" id="attackBtn" style="width:100%;padding:14px;">ATTACK</button>
+    <div class="log" id="fightLog"></div>
+    <button class="btn-purple btn-sm" id="closeFight" style="margin-top:10px;width:100%;">Retreat</button>
+  </div>
+</div>
+
+<script>
+const BIOME_MULT = [1, 9.5, 90.25, 857.4, 8145, 77380];
+const CLEAR_MULT = [5, 15, 35, 105, 315, 945];
+const COVE_NAMES = [
+  ["Landing Cove","Debris Field","Low Tide Flats"],
+  ["Tidepool Cluster","Sandbar Reach","Coral Break"],
+  ["Fern Hollow","Canopy Ridge","Old Grove"],
+  ["Windward Point","Signal Ridge","High Crag"],
+  ["Cave Mouth","Glimmer Vein","The Deep Dark"],
+  ["Outer Trench","Serpent's Coil","The Abyssal Gate"]
+];
+const SERPENT_NAMES = [
+  ["Hatchling","Hatchling","Shoal-back"],["Tide-coiled","Tide-coiled","Tide-coiled"],
+  ["Bramblefang","Bramblefang","Bramblefang"],["Storm-wound","Storm-wound","Storm-wound"],
+  ["Cave-blind","Cave-blind","Cave-blind"],["Abyssal Coil","Abyssal Coil","Abyssal Coil"]
+];
+const BIOME_NAMES = ["Wreck Beach","The Shallows","The Green","The Bluffs","The Hollow","The Deep Reef"];
+const BIOME_CURRENCY = ["driftwood","shells","tokens","fragments","glimmer","glass"];
+const CURRENCY_LABEL = {driftwood:"Driftwood",shells:"Shells",tokens:"Tokens",fragments:"Message Fragments",glimmer:"Cave Glimmer",glass:"Sea Glass",shards:"Compass Shards"};
+const CURRENCY_COLOR = {driftwood:"#7F77DD",shells:"#5DCAA5",tokens:"#639922",fragments:"#D85A30",glimmer:"#3C3489",glass:"#D4537E",shards:"#26215C"};
+const CONSTRUCTION_MATERIAL = ["Bound Rope","Coral Fragments","Hardwood","Bluff Stone","Rare Crystal",null];
+
+function hp(b,c){ return Math.round(50*Math.pow(2.5,c)*BIOME_MULT[b]); }
+function armor(b,c){ return Math.round(8*Math.pow(2.8,c)*BIOME_MULT[b]); }
+function clearsNeeded(b,c){ return (c+1)*CLEAR_MULT[b]; }
+function salvagePower(level){ return ((level+1)*(level+2))/2; }
+
+const GROVES = [
+  {id:"palm", name:"Palm Grove", rarity:20},
+  {id:"fern", name:"Fern Thicket", rarity:60},
+  {id:"vine", name:"Vine Tangle", rarity:150}
+];
+const ARTIFACTS = [
+  {id:"a1", name:"Tap Mastery", desc:"+15% tap power per level", baseCost:5, level:0},
+  {id:"a2", name:"Crew Efficiency", desc:"+15% crew output per level", baseCost:5, level:0},
+  {id:"a3", name:"Serpent Slayer", desc:"+10% fight damage per level", baseCost:8, level:0},
+  {id:"a4", name:"Deep Pockets", desc:"+20% offline earnings per level", baseCost:8, level:0}
+];
+const MILESTONES = [
+  {id:"m1", label:"Collect 1,000 total Driftwood", check:s=>s.totalEarnedAllTime>=1000},
+  {id:"m2", label:"Recruit your first crew member", check:s=>s.crew.some(c=>c.level>0)},
+  {id:"m3", label:"Defeat your first serpent", check:s=>s.totalClears>=1},
+  {id:"m4", label:"Unlock The Shallows", check:s=>s.biomeUnlocked>=1},
+  {id:"m5", label:"Cast your first bottle", check:s=>s.bottlesCastTotal>=1},
+  {id:"m6", label:"Prestige for the first time", check:s=>s.prestigeCount>=1},
+  {id:"m7", label:"Unlock The Green", check:s=>s.biomeUnlocked>=2},
+  {id:"m8", label:"Reach The Deep Reef", check:s=>s.biomeUnlocked>=5}
+];
+
+let state = {
+  currencies:{driftwood:0, shells:0, tokens:0, fragments:0, glimmer:0, glass:0, shards:0},
+  tapLevel:1,
+  biomeIdx:0, coveIdx:0, coveClears:0, biomeUnlocked:0,
+  crew:[
+    {id:"bbw", name:"BBW", cost:25, level:0, rate:0.5, unlockBiome:0},
+    {id:"bbc", name:"BBC", cost:25, level:0, rate:0.5, unlockBiome:0},
+    {id:"lucette", name:"Lucette", cost:80, level:0, rate:1.2, unlockBiome:1, currency:"shells"},
+    {id:"lucy", name:"Lucy", cost:150, level:0, rate:0.8, unlockBiome:3, currency:"fragments"},
+    {id:"feline", name:"The Feline", cost:300, level:0, rate:2, unlockBiome:4, currency:"glimmer"}
+  ],
+  multiplier: 10,
+  totalEarnedThisRun: 0,
+  totalEarnedAllTime: 0,
+  totalClears: 0,
+  prestigeCount: 0,
+  tidepoolLevel:0, tidepoolPoints:0, statGrip:0, statPatience:0, statLuck:0,
+  totems:[
+    {id:"t1", name:"Shellwork Totem", desc:"+10% shell gain", cost:50, level:0},
+    {id:"t2", name:"Patient Tide Totem", desc:"+15% offline earnings", cost:80, level:0}
+  ],
+  groveTicks:{palm:0, fern:0, vine:0},
+  groveHarvests:{palm:0, fern:0, vine:0},
+  recipes:[
+    {id:"r1", name:"Woven Basket", need:{palm:20}, reward:{tokens:15}, done:0},
+    {id:"r2", name:"Herbal Wrap", need:{fern:15,vine:10}, reward:{tokens:25}, done:0}
+  ],
+  bottles: [],
+  bottleCap: 1,
+  bottlesCastTotal: 0
+};
+
+let fight = null;
+let activeTab = 'main';
+
+function fmt(n){
+  if(n<1000) return Math.floor(n).toString();
+  const units=["K","M","B","T","Qa","Qi"]; let u=-1;
+  while(n>=1000 && u<units.length-1){ n/=1000; u++; }
+  return n.toFixed(2)+units[u];
+}
+function currentCoveHp(){ return hp(state.biomeIdx,state.coveIdx); }
+function currentCoveArmor(){ return armor(state.biomeIdx,state.coveIdx); }
+function currentCoveClearsNeeded(){ return clearsNeeded(state.biomeIdx,state.coveIdx); }
+function artifactBonus(id){ const a = ARTIFACTS.find(x=>x.id===id); return 1 + a.level*0.15; }
+function tapPowerEffective(){ return salvagePower(state.tapLevel) * state.multiplier * artifactBonus('a1'); }
+function crewRate(c){ return c.level * c.rate * state.multiplier * artifactBonus('a2'); }
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    activeTab = t.dataset.tab;
+    document.getElementById('panel-'+activeTab).classList.add('active');
+    render();
+  };
+});
+
+function render(){
+  const resbar = document.getElementById('resbar');
+  resbar.innerHTML='';
+  const shown = ['driftwood','shells','tokens','fragments','glimmer','glass','shards'];
+  shown.forEach((k,i)=>{
+    if(k!=='driftwood' && k!=='shards' && state.biomeUnlocked < i-1) return;
+    const pill = document.createElement('div');
+    pill.className='res-pill';
+    pill.innerHTML = '<span class="dot" style="background:'+CURRENCY_COLOR[k]+'"></span>'+fmt(state.currencies[k]);
+    resbar.appendChild(pill);
+  });
+
+  const totalMilestones = MILESTONES.length;
+  const doneMilestones = MILESTONES.filter(m=>m.check(state)).length;
+  const pct = Math.round((doneMilestones/totalMilestones)*100);
+  document.getElementById('completionLine').textContent = pct+'% restored';
+
+  renderMain();
+  if(activeTab==='tidepool') renderTidepool();
+  if(activeTab==='forage') renderForage();
+  if(activeTab==='bottle') renderBottles();
+  if(activeTab==='artifacts') renderArtifacts();
+  if(activeTab==='milestones') renderMilestones();
+}
+
+function renderMain(){
+  document.getElementById('biomeTag').textContent = BIOME_NAMES[state.biomeIdx];
+  document.getElementById('coveLine').textContent = COVE_NAMES[state.biomeIdx][state.coveIdx]+' · '+state.coveClears+'/'+currentCoveClearsNeeded()+' clears';
+  document.getElementById('coveBar').style.width = Math.min(100,(state.coveClears/currentCoveClearsNeeded()*100))+'%';
+  document.getElementById('tapAmt').textContent = fmt(tapPowerEffective());
+
+  const crewList = document.getElementById('crewList');
+  crewList.innerHTML='';
+  state.crew.forEach(c=>{
+    if(c.unlockBiome > state.biomeUnlocked) return;
+    const cur = c.currency || 'driftwood';
+    const div = document.createElement('div');
+    div.className='crew-item';
+    div.innerHTML = '<div class="info"><b>'+c.name+' (Lv '+c.level+')</b><span>+'+fmt(crewRate(c))+' Driftwood/s</span></div><button class="btn-teal" data-crew="'+c.id+'">Recruit — '+fmt(c.cost)+' '+CURRENCY_LABEL[cur]+'</button>';
+    crewList.appendChild(div);
+  });
+
+  const upList = document.getElementById('upgradeList');
+  const tapCost = Math.round(20*Math.pow(1.15,state.tapLevel));
+  upList.innerHTML = '<div class="crew-item"><div class="info"><b>Tap Power (Lv '+state.tapLevel+')</b><span>+'+fmt(salvagePower(state.tapLevel))+' per tap base</span></div><button class="btn-purple" id="tapUpgradeBtn">Upgrade — '+fmt(tapCost)+' Driftwood</button></div>';
+
+  const consSection = document.getElementById('constructionSection');
+  const consInfo = document.getElementById('constructionInfo');
+  if(state.biomeUnlocked>=5){ consSection.style.display='none'; }
+  else if(state.coveIdx<2 || state.coveClears<currentCoveClearsNeeded()){
+    consSection.style.display='block';
+    consInfo.innerHTML = '<div style="font-size:12px;color:#5F5E5A;">Clear all coves in '+BIOME_NAMES[state.biomeIdx]+' to unlock construction.</div>';
+  } else {
+    consSection.style.display='block';
+    const mat = CONSTRUCTION_MATERIAL[state.biomeIdx];
+    const cur = BIOME_CURRENCY[state.biomeIdx];
+    const need = 500*CLEAR_MULT[state.biomeIdx];
+    consInfo.innerHTML = '<div class="cons-item"><div class="info"><b>Build the crossing</b><span>Needs '+fmt(need)+' '+CURRENCY_LABEL[cur]+' + '+mat+'</span></div><button class="btn-coral" id="buildBtn">Build</button></div>';
+  }
+
+  const shardGain = Math.floor(Math.pow(state.totalEarnedThisRun/500,0.55));
+  document.getElementById('shardPreview').textContent = '+'+fmt(shardGain)+' Compass Shards';
+
+  document.querySelectorAll('[data-crew]').forEach(btn=>{ btn.onclick=()=>recruitCrew(btn.dataset.crew); });
+  const tapUp = document.getElementById('tapUpgradeBtn');
+  if(tapUp) tapUp.onclick = upgradeTap;
+  const buildBtn = document.getElementById('buildBtn');
+  if(buildBtn) buildBtn.onclick = doConstruction;
+}
+
+function renderTidepool(){
+  const unlocked = state.biomeUnlocked>=1;
+  document.getElementById('tidepoolLock').style.display = unlocked?'none':'block';
+  document.getElementById('tidepoolContent').style.display = unlocked?'block':'none';
+  if(!unlocked){ document.getElementById('tidepoolLock').textContent='Unlock The Shallows to access Tidepooling.'; return; }
+
+  document.getElementById('tidepoolAmt').textContent = fmt(1 + state.statGrip*0.5);
+  document.getElementById('tidepoolLevel').textContent = state.tidepoolLevel;
+  document.getElementById('tidepoolPoints').textContent = state.tidepoolPoints;
+  document.getElementById('statGrip').textContent = state.statGrip;
+  document.getElementById('statPatience').textContent = state.statPatience;
+  document.getElementById('statLuck').textContent = state.statLuck;
+
+  const totemList = document.getElementById('totemList');
+  totemList.innerHTML='';
+  state.totems.forEach(t=>{
+    const div = document.createElement('div');
+    div.className='art-item';
+    const cost = Math.round(t.cost*Math.pow(1.6,t.level));
+    div.innerHTML = '<div class="info"><b>'+t.name+' (Lv '+t.level+')</b><span>'+t.desc+'</span></div><button class="btn-purple" data-totem="'+t.id+'">'+fmt(cost)+' shells</button>';
+    totemList.appendChild(div);
+  });
+
+  document.querySelectorAll('[data-stat]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const key = btn.dataset.stat.replace('+','');
+      const isAdd = btn.dataset.stat.endsWith('+');
+      if(isAdd && state.tidepoolPoints>0){ state['stat'+cap(key)]++; state.tidepoolPoints--; }
+      else if(!isAdd && state['stat'+cap(key)]>0){ state['stat'+cap(key)]--; state.tidepoolPoints++; }
+      render();
+    };
+  });
+  document.querySelectorAll('[data-totem]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const t = state.totems.find(x=>x.id===btn.dataset.totem);
+      const cost = Math.round(t.cost*Math.pow(1.6,t.level));
+      if(state.currencies.shells>=cost){ state.currencies.shells-=cost; t.level++; render(); }
+    };
+  });
+}
+
+document.getElementById('tidepoolTapBtn').onclick = ()=>{
+  const gain = (1+state.statGrip*0.5)*state.multiplier;
+  state.currencies.shells += gain;
+  state.tidepoolLevel++;
+  if(state.tidepoolLevel % 5 === 0) state.tidepoolPoints++;
+  render();
+};
+
+function renderForage(){
+  const unlocked = state.biomeUnlocked>=2;
+  document.getElementById('forageLock').style.display = unlocked?'none':'block';
+  document.getElementById('forageContent').style.display = unlocked?'block':'none';
+  if(!unlocked){ document.getElementById('forageLock').textContent='Unlock The Green to access Foraging.'; return; }
+
+  const groveList = document.getElementById('groveList');
+  groveList.innerHTML='';
+  GROVES.forEach(g=>{
+    const ticks = state.groveTicks[g.id];
+    const power = 10*state.multiplier;
+    const chance = Math.min(999, Math.round(100*power/g.rarity));
+    const div = document.createElement('div');
+    div.className='grove-item';
+    div.innerHTML = '<div class="info"><span><b>'+g.name+'</b></span><span style="font-size:10.5px;color:#5F5E5A;">'+chance+'% catch chance</span></div><div class="bar"><div style="width:'+ticks+'%;background:var(--green);"></div></div><button class="btn-green btn-sm" data-grove="'+g.id+'" style="margin-top:6px;width:100%;">Tend grove</button>';
+    groveList.appendChild(div);
+  });
+
+  const recipeList = document.getElementById('recipeList');
+  recipeList.innerHTML='';
+  state.recipes.forEach(r=>{
+    const needStr = Object.entries(r.need).map(function(e){return e[1]+' '+e[0];}).join(', ');
+    const div = document.createElement('div');
+    div.className='art-item';
+    div.innerHTML = '<div class="info"><b>'+r.name+' (done '+r.done+'x)</b><span>Needs '+needStr+'</span></div><button class="btn-coral" data-recipe="'+r.id+'">Trade</button>';
+    recipeList.appendChild(div);
+  });
+
+  document.querySelectorAll('[data-grove]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const g = GROVES.find(x=>x.id===btn.dataset.grove);
+      state.groveTicks[g.id] = Math.min(100, state.groveTicks[g.id] + 15*state.multiplier/10);
+      if(state.groveTicks[g.id]>=100){
+        state.groveTicks[g.id]=0;
+        state.currencies.tokens += 2*state.multiplier;
+        state.groveHarvests[g.id] = (state.groveHarvests[g.id]||0)+1;
+      }
+      render();
+    };
+  });
+  document.querySelectorAll('[data-recipe]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const r = state.recipes.find(x=>x.id===btn.dataset.recipe);
+      const canAfford = Object.entries(r.need).every(function(e){ return (state.groveHarvests[e[0]]||0) >= e[1]; });
+      if(canAfford){
+        Object.keys(r.need).forEach(function(k){ state.groveHarvests[k]-=r.need[k]; });
+        Object.entries(r.reward).forEach(function(e){ state.currencies[e[0]]+=e[1]*state.multiplier; });
+        r.done++;
+      }
+      render();
+    };
+  });
+}
+
+function renderBottles(){
+  const list = document.getElementById('bottleList');
+  list.innerHTML='';
+  if(state.bottles.length===0){ list.innerHTML = '<div style="font-size:12px;color:#5F5E5A;">No bottles in flight. Cast one!</div>'; return; }
+  const now = Date.now();
+  state.bottles.forEach(b=>{
+    const remaining = Math.max(0, (b.returnAt-now)/1000);
+    const div = document.createElement('div');
+    div.className='bottle-item';
+    if(remaining<=0){
+      div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><span>A bottle has washed ashore!</span><button class="btn-pink btn-sm" data-collect="'+b.id+'">Collect</button></div>';
+    } else {
+      div.innerHTML = '<div style="font-size:12px;color:#5F5E5A;">Adrift... back in '+remaining.toFixed(0)+'s</div>';
+    }
+    list.appendChild(div);
+  });
+  document.querySelectorAll('[data-collect]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const idx = state.bottles.findIndex(x=>x.id===btn.dataset.collect);
+      const roll = Math.random();
+      let msg;
+      if(roll<0.03){ state.currencies.fragments += 25*state.multiplier; msg="Captain's Bottle! Big fragment haul."; }
+      else if(roll<0.25){ state.currencies.fragments += 8*state.multiplier; msg="A solid handful of fragments."; }
+      else { state.currencies.driftwood += 5*state.multiplier; msg="Just some driftwood, but hey."; }
+      state.bottles.splice(idx,1);
+      render();
+      showToast(msg);
+    };
+  });
+}
+document.getElementById('castBottleBtn').onclick = ()=>{
+  if(state.bottles.length>=state.bottleCap) return;
+  state.bottles.push({id:'b'+Date.now(), returnAt: Date.now() + (5000 + Math.random()*10000)/state.multiplier*10});
+  state.bottlesCastTotal++;
+  render();
+};
+document.getElementById('bottleBurstBtn').onclick = ()=>{
+  const burst = tapPowerEffective()*8;
+  state.currencies.driftwood += burst;
+  state.totalEarnedThisRun += burst;
+  state.totalEarnedAllTime += burst;
+  render();
+};
+
+function renderArtifacts(){
+  const list = document.getElementById('artifactList');
+  list.innerHTML='';
+  ARTIFACTS.forEach(a=>{
+    const cost = Math.round(a.baseCost*Math.pow(1.5,a.level));
+    const div = document.createElement('div');
+    div.className='art-item';
+    div.innerHTML = '<div class="info"><b>'+a.name+' (Lv '+a.level+')</b><span>'+a.desc+'</span></div><button class="btn-dark" data-art="'+a.id+'">'+fmt(cost)+' shards</button>';
+    list.appendChild(div);
+  });
+  document.querySelectorAll('[data-art]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const a = ARTIFACTS.find(x=>x.id===btn.dataset.art);
+      const cost = Math.round(a.baseCost*Math.pow(1.5,a.level));
+      if(state.currencies.shards>=cost){ state.currencies.shards-=cost; a.level++; render(); }
+    };
+  });
+}
+
+function renderMilestones(){
+  const list = document.getElementById('milestoneList');
+  list.innerHTML='';
+  MILESTONES.forEach(m=>{
+    const done = m.check(state);
+    const div = document.createElement('div');
+    div.className = 'milestone'+(done?' done':'');
+    div.innerHTML = '<span>'+m.label+'</span><span>'+(done?'DONE':'')+'</span>';
+    list.appendChild(div);
+  });
+}
+
+function addDriftwood(amt){ state.currencies.driftwood+=amt; state.totalEarnedThisRun+=amt; state.totalEarnedAllTime+=amt; }
+document.getElementById('tapBtn').onclick = ()=>{ addDriftwood(tapPowerEffective()); render(); };
+
+function upgradeTap(){
+  const cost = Math.round(20*Math.pow(1.15,state.tapLevel));
+  if(state.currencies.driftwood>=cost){ state.currencies.driftwood-=cost; state.tapLevel++; render(); }
+}
+function recruitCrew(id){
+  const c = state.crew.find(x=>x.id===id);
+  const cur = c.currency||'driftwood';
+  if(state.currencies[cur]>=c.cost){ state.currencies[cur]-=c.cost; c.level++; c.cost=Math.round(c.cost*1.35); render(); }
+}
+function doConstruction(){
+  const cur = BIOME_CURRENCY[state.biomeIdx];
+  const need = 500*CLEAR_MULT[state.biomeIdx];
+  if(state.currencies[cur]>=need){
+    state.currencies[cur]-=need;
+    state.biomeIdx++; state.coveIdx=0; state.coveClears=0;
+    state.biomeUnlocked=Math.max(state.biomeUnlocked,state.biomeIdx);
+    render();
+  }
+}
+document.getElementById('prestigeBtn').onclick = ()=>{
+  const shardGain = Math.floor(Math.pow(state.totalEarnedThisRun/500,0.55));
+  state.currencies.shards += shardGain;
+  state.currencies.driftwood = 0;
+  state.tapLevel = 1;
+  state.crew.forEach(c=>{ c.level=0; });
+  state.totalEarnedThisRun = 0;
+  state.prestigeCount++;
+  render();
+};
+
+document.getElementById('fightBtn').onclick = startFight;
+document.getElementById('closeFight').onclick = ()=>{ document.getElementById('fightModal').classList.remove('show'); clearInterval(fight?fight.timerHandle:null); fight=null; };
+function startFight(){
+  const maxHp = currentCoveHp();
+  fight = { hpMax:maxHp, hp:maxHp, armor:currentCoveArmor(), timeLeft:30 };
+  document.getElementById('fightName').textContent = SERPENT_NAMES[state.biomeIdx][state.coveIdx];
+  document.getElementById('fightStats').textContent = 'HP '+fmt(maxHp)+' · Armor '+fmt(fight.armor);
+  document.getElementById('fightHpBar').style.width='100%';
+  document.getElementById('fightTimer').textContent = fight.timeLeft.toFixed(1)+'s';
+  document.getElementById('fightLog').textContent='';
+  document.getElementById('fightModal').classList.add('show');
+  fight.timerHandle = setInterval(()=>{
+    fight.timeLeft -= 0.1;
+    document.getElementById('fightTimer').textContent = Math.max(0,fight.timeLeft).toFixed(1)+'s';
+    if(fight.timeLeft<=0){
+      clearInterval(fight.timerHandle);
+      document.getElementById('fightLog').textContent = 'Out of time — damage is saved, try again!';
+      setTimeout(()=>{ document.getElementById('fightModal').classList.remove('show'); fight=null; },1200);
+    }
+  },100);
+}
+document.getElementById('attackBtn').onclick = ()=>{
+  if(!fight) return;
+  const rawDmg = tapPowerEffective() * artifactBonus('a3');
+  const dmg = Math.max(0, rawDmg - fight.armor);
+  if(dmg<=0){ document.getElementById('fightLog').textContent = "Your damage can't overcome its armor yet!"; return; }
+  fight.hp -= dmg;
+  document.getElementById('fightHpBar').style.width = Math.max(0,(fight.hp/fight.hpMax*100))+'%';
+  if(fight.hp<=0){
+    clearInterval(fight.timerHandle);
+    document.getElementById('fightLog').textContent = 'Defeated! Clear recorded.';
+    winFight();
+    setTimeout(()=>{ document.getElementById('fightModal').classList.remove('show'); fight=null; },1000);
+  }
+};
+function winFight(){
+  state.coveClears++;
+  state.totalClears++;
+  const cur = BIOME_CURRENCY[state.biomeIdx];
+  state.currencies[cur] += 50*CLEAR_MULT[state.biomeIdx]*state.multiplier/10;
+  if(state.coveClears>=currentCoveClearsNeeded() && state.coveIdx<2){ state.coveIdx++; state.coveClears=0; }
+  render();
+}
+
+function tickPassive(seconds){
+  let total=0;
+  state.crew.forEach(c=>{ if(c.unlockBiome<=state.biomeUnlocked) total+=crewRate(c); });
+  if(total>0) addDriftwood(total*seconds);
+}
+setInterval(()=>{ tickPassive(0.5); render(); },500);
+
+function showToast(msg){
+  const t = document.getElementById('offlineToast');
+  t.textContent = msg; t.style.display='block';
+  setTimeout(()=>{ t.style.display='none'; },3500);
+}
+
+document.getElementById('simOfflineBtn').onclick = ()=>{
+  const offlineSeconds = 8*3600;
+  const patienceMult = 1 + state.statPatience*0.1;
+  let total=0;
+  state.crew.forEach(c=>{ if(c.unlockBiome<=state.biomeUnlocked) total+=crewRate(c); });
+  const offlineGain = total * offlineSeconds * 0.5 * patienceMult * artifactBonus('a4');
+  addDriftwood(offlineGain);
+  state.bottles.forEach(b=>{ b.returnAt = Date.now()-1; });
+  showToast('Welcome back! While you were away: +'+fmt(offlineGain)+' Driftwood from your crew.');
+  render();
+};
+
+document.getElementById('toggleDebug').onclick = ()=>{
+  const p = document.getElementById('debugPanel');
+  p.style.display = p.style.display==='none'?'block':'none';
+};
+const multSlider = document.getElementById('multSlider');
+multSlider.oninput = ()=>{ state.multiplier=parseInt(multSlider.value); document.getElementById('multVal').textContent=state.multiplier; render(); };
+const jumpSelect = document.getElementById('jumpBiome');
+BIOME_NAMES.forEach((name,i)=>{ const opt=document.createElement('option'); opt.value=i; opt.textContent=(i+1)+'. '+name; jumpSelect.appendChild(opt); });
+jumpSelect.onchange = ()=>{
+  const idx = parseInt(jumpSelect.value);
+  state.biomeIdx=idx; state.biomeUnlocked=Math.max(state.biomeUnlocked,idx);
+  state.coveIdx=0; state.coveClears=0; render();
+};
+document.getElementById('resetBtn').onclick = ()=>{ location.reload(); };
+
+render();
+</script>
+</body>
+</html>
