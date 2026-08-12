@@ -19,6 +19,10 @@ namespace Rubrehose.Core
         public int coveIndex;
         public int coveClears;
         public bool constructionComplete;
+
+        // 0 = only Wreck Beach unlocked. Bumped when a later biome's construction
+        // gate completes; drives the fast-travel ribbon (CAMERA_AND_UI_SPEC.md).
+        public int biomeUnlocked;
         public double totalEarnedAllTime;
         public int totalClears;
         public long lastSaveUnixSeconds;
