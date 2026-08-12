@@ -1,9 +1,10 @@
 # Unity setup — Wreck Beach vertical slice
 
 This repo root *is* the Unity project (that's why `.gitignore` is the standard Unity
-root gitignore). Only the parts that need code — or that are safe, mechanical scene
-edits — are done here; everything visual (UI hierarchy, prefabs, imported art) is
-Editor work, per the "Build split" note in [`GAME_DESIGN.md`](GAME_DESIGN.md).
+root gitignore). Only the parts that need code — safe, mechanical scene edits, or a
+`[MenuItem]` tool for a hierarchy exact enough that eyeballing it isn't worth it — are
+done here; everything else (imported art, remaining UI hierarchy) is Editor work, per
+the "Build split" note in [`GAME_DESIGN.md`](GAME_DESIGN.md).
 
 ## 1. Open the project
 
@@ -60,33 +61,32 @@ What's still yours to build in-Editor:
 3. Save it as a prefab or keep it inline in the scene — either works, since
    `MainHUDController` only needs a scene reference to call `OpenFight()`.
 
-## 5. Fast-travel handle/ribbon
+## 5. Fast-travel handle/ribbon — generated, don't hand-build
 
-Per `CAMERA_AND_UI_SPEC.md`, this is a Screen Space Canvas overlay, always
-screen-anchored bottom-left, independent of the world-scroll Canvas above (build it as
-its own Canvas, or a dedicated root under the same one — either works as long as its
-anchor stays fixed to the corner regardless of camera position).
+Menu: **Rubrehose → Build Fast-Travel Ribbon** (`Assets/Editor/FastTravelRibbonBuilder.cs`).
+It builds the whole hierarchy with exact `RectTransform` values instead of you eyeballing
+it: a `FastTravelCanvas` (Screen Space – Overlay, independent of the world-scroll Canvas,
+always screen-anchored bottom-left per `CAMERA_AND_UI_SPEC.md`) containing the collapsed
+handle and expanded ribbon, plus a `FastTravelSlotUI` prefab saved to
+`Assets/Prefabs/FastTravelSlot.prefab`. It also attaches `FastTravelRibbonController`,
+wires every field (including `worldCamera` → whatever `WorldScrollCamera` it finds in the
+scene), and adds an `EventSystem` if the scene doesn't have one yet.
 
-1. **Collapsed handle** — small circle with a thumbnail `Image` + a label `TMP_Text`
-   under it, floating bottom-left with real margin from the screen edge (not flush —
-   avoids the iOS home-gesture zone). Wrap it in a `Button`.
-2. **Expanded ribbon** — a low-profile horizontal panel anchored to the same
-   bottom-left point, starting inactive. Add a `Transform` inside it as the slot
-   container (e.g. `Horizontal Layout Group`), and a small close (`×`) `Button` in
-   its corner.
-3. **Slot prefab** — one ribbon entry: thumbnail `Image`, label `TMP_Text`, a
-   highlight-ring `GameObject` (outline/glow, toggled on/off), wrapped in a `Button`.
-   Attach `FastTravelSlotUI.cs`, wire its fields, save to `Assets/Prefabs/`, delete
-   the scene instance.
-4. Attach `FastTravelRibbonController.cs` (`Assets/Scripts/UI`) to the ribbon root and
-   wire:
-   - `collapsedHandle` / `collapsedThumbnail` / `collapsedLabel` / `collapsedHandleButton`
-   - `expandedRibbon` / `slotContainer` / `slotPrefab` / `closeButton`
-   - `worldCamera` → the Main Camera (its `WorldScrollCamera` component)
-   - `biomeWorldX` / `biomeThumbnails` — size-6 arrays in `BiomeCatalog` order
-     (Wreck Beach, The Shallows, The Green, The Bluffs, The Hollow, The Deep Reef).
-     Only index 0 matters for now; fill in the rest as each biome's terrain gets a
-     real world-X position and a thumbnail.
+Run it any time after the scene is open. It's re-runnable: if `FastTravelCanvas` or the
+slot prefab already exist, it asks before deleting and rebuilding them from scratch — so
+don't hand-edit the generated objects or prefab directly, since a rebuild throws those
+edits away. Everything you'd actually want to customize lives on
+`FastTravelRibbonController`'s own fields instead:
+
+- `biomeThumbnails` / `biomeWorldX` — size-6 arrays in `BiomeCatalog` order (Wreck Beach,
+  The Shallows, The Green, The Bluffs, The Hollow, The Deep Reef). Only index 0 matters
+  for now; fill in the rest as each biome's terrain gets a real world-X position and a
+  thumbnail sprite.
+
+Everything's built with placeholder colors/shapes (the built-in circular "Knob" sprite for
+the handle/ring, flat ink/cream/purple fills from `rubrehose_prototype.html`'s palette) —
+drop real art onto the `Image` components under `FastTravelCanvas` and the slot prefab
+once it exists; that's a normal sprite swap, not something the tool needs to know about.
 
 The ribbon only ever shows biomes up to `GameManager.Instance.State.biomeUnlocked`
 (currently always 0 → Wreck Beach only, so you'll see exactly one slot). That field
