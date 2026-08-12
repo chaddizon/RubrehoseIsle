@@ -23,7 +23,7 @@ Tap to salvage → recruit crew (passive generators) → spend currency on upgra
 
 | # | Biome | Currency | Construction material | Unlocks |
 |---|---|---|---|---|
-| 1 | Wreck Beach | Driftwood | Bound Rope | Tap Power, Bottle Toss, BBW/BBC |
+| 1 | Wreck Beach | Driftwood | Bound Rope | Tap Power, Cast a Net / Bottle Toss, BBW/BBC |
 | 2 | The Shallows | Shells/Pearls | Coral Fragments | Tidepooling, Lucette |
 | 3 | The Green | Forage Tokens | Hardwood | Foraging, BBW/BBC synergy |
 | 4 | The Bluffs | Message Fragments | Bluff Stone | Full Message-in-a-Bottle, Lucy |
