@@ -3,49 +3,41 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Rubrehose.CameraControl;
 using Rubrehose.UI;
+using static Rubrehose.EditorTools.RubrehoseEditorUtils;
 
 namespace Rubrehose.EditorTools
 {
-    // Builds the fast-travel handle/ribbon hierarchy from CAMERA_AND_UI_SPEC.md with exact
-    // RectTransform values, instead of hand-placing it in the Editor. Re-runnable: rebuilds
-    // the scene hierarchy and the slot prefab from scratch each time (after confirming),
-    // so any manual tweaks made directly on them get overwritten — real biome thumbnails
-    // and per-biome world-X positions belong on FastTravelRibbonController's serialized
-    // arrays, not hand-edited onto the generated objects, so they survive a rebuild.
+    // Builds the fast-travel handle/ribbon hierarchy from HUD_AND_LANDING_COVE_LAYOUT.md §A
+    // (the "Fast-travel handle" row) with exact RectTransform values, instead of
+    // hand-placing it in the Editor. Lives on the shared PersistentUICanvas alongside the
+    // other §A elements (PersistentHUDBuilder) — only ever rebuilds its own "FastTravel"
+    // child, so running this and the other builder tools in any order is safe.
     public static class FastTravelRibbonBuilder
     {
         private const string RootName = "FastTravel";
-        private const string CanvasName = "FastTravelCanvas";
         private const string PrefabPath = "Assets/Prefabs/FastTravelSlot.prefab";
 
-        private static readonly Color InkColor = new Color32(26, 26, 26, 255);
-        private static readonly Color InkColorTranslucent = new Color32(26, 26, 26, 235);
-        private static readonly Color CreamColor = new Color32(244, 239, 224, 255);
-        private static readonly Color PlaceholderThumbColor = new Color32(230, 227, 214, 255);
-        private static readonly Color PurpleAccent = new Color32(127, 119, 221, 255);
+        // Master-table geometry (bottom-left anchor, center point at +50,-64, 60x60 / 30px radius).
+        private static readonly Vector2 HandleCenter = new Vector2(50, 64);
+        private const float HandleRadius = 30f;
 
-        [MenuItem("Rubrehose/Build Fast-Travel Ribbon")]
+        [MenuItem("Rubrehose/Build Persistent UI/Fast-Travel Ribbon")]
         public static void Build()
         {
-            if (TMP_Settings.defaultFontAsset == null)
-            {
-                Debug.LogWarning("FastTravelRibbonBuilder: no default TMP font asset found — import TMP Essentials " +
-                                  "(Window > TextMeshPro > Import TMP Essential Resources), then re-run this command " +
-                                  "if labels look blank.");
-            }
+            WarnIfNoTmpFontAsset();
 
-            var existingCanvas = GameObject.Find(CanvasName);
+            var canvas = FindOrCreatePersistentCanvas();
+            bool alreadyExists = canvas.transform.Find(RootName) != null;
             bool prefabExists = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) != null;
-            if (existingCanvas != null || prefabExists)
+            if (alreadyExists || prefabExists)
             {
                 bool confirmed = EditorUtility.DisplayDialog(
                     "Rebuild Fast-Travel Ribbon",
-                    "This deletes and recreates the '" + CanvasName + "' hierarchy" +
+                    "This deletes and recreates the '" + RootName + "' hierarchy" +
                     (prefabExists ? " and overwrites " + PrefabPath : "") +
                     ". Any manual tweaks will be lost — real thumbnails/positions belong on " +
                     "FastTravelRibbonController's arrays, which this won't touch. Continue?",
@@ -56,10 +48,9 @@ namespace Rubrehose.EditorTools
             Undo.SetCurrentGroupName("Build Fast-Travel Ribbon");
             int undoGroup = Undo.GetCurrentGroup();
 
-            if (existingCanvas != null) Undo.DestroyObjectImmediate(existingCanvas);
+            DestroyExistingChild(canvas.transform, RootName);
 
-            var canvasGO = BuildCanvas();
-            var rootRt = CreateUIObject(RootName, canvasGO.transform);
+            var rootRt = CreateUIObject(RootName, canvas.transform);
             Anchor(rootRt, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
 
             var slotPrefab = BuildAndSaveSlotPrefab();
@@ -68,10 +59,10 @@ namespace Rubrehose.EditorTools
 
             var controller = Undo.AddComponent<FastTravelRibbonController>(rootRt.gameObject);
 
-            var worldCamera = Object.FindFirstObjectByType<WorldScrollCamera>();
+            var worldCamera = Object.FindFirstObjectByType<CoveViewCamera>();
             if (worldCamera == null)
             {
-                Debug.LogWarning("FastTravelRibbonBuilder: no WorldScrollCamera found in the scene — " +
+                Debug.LogWarning("FastTravelRibbonBuilder: no CoveViewCamera found in the scene — " +
                                   "assign FastTravelRibbonController.worldCamera manually.");
             }
 
@@ -92,39 +83,20 @@ namespace Rubrehose.EditorTools
 
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Selection.activeGameObject = rootRt.gameObject;
-            Debug.Log("FastTravelRibbonBuilder: built '" + CanvasName + "'. Assign real sprites on " +
+            Debug.Log("FastTravelRibbonBuilder: built '" + RootName + "' on " + PersistentCanvasName + ". Assign real sprites on " +
                        "FastTravelRibbonController.biomeThumbnails and world-X positions on biomeWorldX " +
                        "as each biome's terrain is built.");
         }
 
         // --- Hierarchy pieces ------------------------------------------------
 
-        private static GameObject BuildCanvas()
-        {
-            var go = new GameObject(CanvasName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            Undo.RegisterCreatedObjectUndo(go, "Build Fast-Travel Ribbon");
-
-            var canvas = go.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10; // above the default-order HUD canvas
-
-            var scaler = go.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
-
-            return go;
-        }
-
         private static GameObject BuildCollapsedHandle(Transform parent, out Button button, out Image thumbnail, out TMP_Text label)
         {
-            // Bottom-left, clear of the screen edge (avoids the iOS home-gesture zone).
             var root = CreateUIObject("CollapsedHandle", parent);
-            Anchor(root, new Vector2(0, 0), new Vector2(0, 0), new Vector2(0, 0), new Vector2(28, 44), new Vector2(84, 100));
+            Anchor(root, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
 
             var circle = CreateUIObject("Circle", root);
-            Anchor(circle, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(72, 72));
+            Anchor(circle, Vector2.zero, Vector2.zero, new Vector2(0.5f, 0.5f), HandleCenter, Vector2.one * (HandleRadius * 2f));
             var circleImage = circle.gameObject.AddComponent<Image>();
             circleImage.sprite = KnobSprite();
             circleImage.color = InkColor;
@@ -137,8 +109,10 @@ namespace Rubrehose.EditorTools
             thumbnail.color = PlaceholderThumbColor;
             thumbnail.preserveAspect = true;
 
+            // Small label under the circle, per CAMERA_AND_UI_SPEC.md's fast-travel section.
             var labelRt = CreateUIObject("Label", root);
-            Anchor(labelRt, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), Vector2.zero, new Vector2(84, 24));
+            Anchor(labelRt, Vector2.zero, Vector2.zero, new Vector2(0.5f, 1f),
+                new Vector2(HandleCenter.x, HandleCenter.y - HandleRadius - 4f), new Vector2(84, 24));
             label = AddText(labelRt.gameObject, "Wreck Beach", 18, CreamColor, TextAlignmentOptions.Top);
 
             return root.gameObject;
@@ -146,11 +120,11 @@ namespace Rubrehose.EditorTools
 
         private static GameObject BuildExpandedRibbon(Transform parent, out Transform slotContainer, out Button closeButton)
         {
-            // Same anchor point the collapsed circle occupies — the ribbon grows outward
-            // from there (via HorizontalLayoutGroup + ContentSizeFitter), it isn't a
-            // separate panel elsewhere on screen.
+            // Same anchor point the collapsed circle occupies (its bottom-left corner) —
+            // the ribbon grows outward from there via HorizontalLayoutGroup + ContentSizeFitter.
+            var anchorPoint = HandleCenter - Vector2.one * HandleRadius;
             var root = CreateUIObject("ExpandedRibbon", parent);
-            Anchor(root, new Vector2(0, 0), new Vector2(0, 0), new Vector2(0, 0), new Vector2(28, 44), Vector2.zero);
+            Anchor(root, Vector2.zero, Vector2.zero, Vector2.zero, anchorPoint, Vector2.zero);
 
             var bg = root.gameObject.AddComponent<Image>();
             bg.color = InkColorTranslucent;
@@ -239,53 +213,5 @@ namespace Rubrehose.EditorTools
 
             return prefab.GetComponent<FastTravelSlotUI>();
         }
-
-        private static void EnsureEventSystem()
-        {
-            if (Object.FindFirstObjectByType<EventSystem>() != null) return;
-            var go = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-            Undo.RegisterCreatedObjectUndo(go, "Build Fast-Travel Ribbon");
-        }
-
-        // --- Small RectTransform helpers -------------------------------------
-
-        private static RectTransform CreateUIObject(string name, Transform parent, bool registerUndo = true)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            if (registerUndo) Undo.RegisterCreatedObjectUndo(go, "Build Fast-Travel Ribbon");
-            var rt = go.GetComponent<RectTransform>();
-            rt.SetParent(parent, false);
-            return rt;
-        }
-
-        private static void Anchor(RectTransform rt, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 sizeDelta)
-        {
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.pivot = pivot;
-            rt.anchoredPosition = anchoredPosition;
-            rt.sizeDelta = sizeDelta;
-        }
-
-        private static void Stretch(RectTransform rt, Vector2 offsetMin, Vector2 offsetMax)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = offsetMin;
-            rt.offsetMax = offsetMax;
-        }
-
-        private static TextMeshProUGUI AddText(GameObject go, string text, float fontSize, Color color, TextAlignmentOptions alignment)
-        {
-            var tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text = text;
-            tmp.fontSize = fontSize;
-            tmp.color = color;
-            tmp.alignment = alignment;
-            tmp.raycastTarget = false;
-            return tmp;
-        }
-
-        private static Sprite KnobSprite() => AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
     }
 }

@@ -27,7 +27,7 @@ namespace Rubrehose.UI
         [SerializeField] private Button closeButton;
 
         [Header("World")]
-        [SerializeField] private WorldScrollCamera worldCamera;
+        [SerializeField] private CoveViewCamera worldCamera;
         [SerializeField] private float panDurationSeconds = 0.8f;
 
         [Tooltip("World-space X to pan the camera to for each biome, in BiomeCatalog order. Fill in as each biome's terrain is built.")]

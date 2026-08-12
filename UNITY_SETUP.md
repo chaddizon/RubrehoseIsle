@@ -3,8 +3,13 @@
 This repo root *is* the Unity project (that's why `.gitignore` is the standard Unity
 root gitignore). Only the parts that need code — safe, mechanical scene edits, or a
 `[MenuItem]` tool for a hierarchy exact enough that eyeballing it isn't worth it — are
-done here; everything else (imported art, remaining UI hierarchy) is Editor work, per
-the "Build split" note in [`GAME_DESIGN.md`](GAME_DESIGN.md).
+done here; everything else (imported art, per-entry menu-drawer content) is Editor work,
+per the "Build split" note in [`GAME_DESIGN.md`](GAME_DESIGN.md).
+
+**This doc reflects the single-static-screen-per-cove navigation model** from the revised
+`CAMERA_AND_UI_SPEC.md` and `HUD_AND_LANDING_COVE_LAYOUT.md` — a rebuild of the original
+continuous-scroll version. If you're looking at old notes/screenshots from before, the
+camera and HUD sections below supersede them.
 
 ## 1. Open the project
 
@@ -17,83 +22,61 @@ the "Build split" note in [`GAME_DESIGN.md`](GAME_DESIGN.md).
 
 ## 2. `Assets/Scenes/WreckBeach.unity` — already wired
 
-Two things are already set up directly in the scene file, so you don't need to build
-them by hand:
+- **Main Camera** — 2D orthographic (`orthographic size: 5`), has `CoveViewCamera.cs`
+  attached (`Assets/Scripts/CameraControl`). No drag-scroll — a bounded left/right swipe
+  pages between already-unlocked coves (max 3), animated as a pan. `coveScreenWidth`
+  (5.625) assumes a 1080×1920 reference aspect; retune it once real cove art sets the
+  actual per-screen width.
+- **GameManager** — empty GameObject with `GameManager.cs` attached, so `Tap()`, crew,
+  cove/fight state etc. are live the moment you press Play.
 
-- **Main Camera** — converted to 2D orthographic (`orthographic size: 5`) and has
-  `WorldScrollCamera.cs` attached (`Assets/Scripts/CameraControl`). Horizontal drag
-  anywhere in the scene now scrolls it, per `CAMERA_AND_UI_SPEC.md`. Its `worldMinX`
-  / `worldMaxX` are a **placeholder range (-2..2)** — once the Wreck Beach background
-  art is imported, update these on the component to match the strip's real world-unit
-  width (roughly 33% water / 20% beach / 47% buildable land per the spec).
-- **GameManager** — empty GameObject with `GameManager.cs` attached, so `Tap()`,
-  crew, cove/fight state etc. are live the moment you press Play.
+## 3. Auto-build commands — run these, don't hand-build
 
-What's still yours to build in-Editor:
+All under the **Rubrehose** menu. Each is re-runnable (confirms before deleting/rebuilding
+its own subtree) and safe to run in any order — they share one Canvas
+(`PersistentUICanvas`) but each tool only ever touches its own named child.
 
-1. **Canvas** (Screen Space – Overlay) + **EventSystem** (Unity offers to create the
-   EventSystem automatically the first time you add a Canvas).
-2. Under the Canvas, build the HUD roughly following `rubrehose_prototype.html`'s
-   layout (it's the validated reference for feel, not a pixel spec):
-   - Resource readout: driftwood amount, biome tag, cove name + clears, a progress bar.
-   - Tap button showing tap amount.
-   - Tap-upgrade row (level + cost).
-   - A crew list container (empty `Transform`, e.g. a `Vertical Layout Group`).
-   - Fight button.
-   - Construction gate section (label + build button).
-3. Attach `MainHUDController.cs` (`Assets/Scripts/UI`) to the Canvas or a HUD root, and
-   wire every `[SerializeField]` in the Inspector to the objects you just built.
+| Command | Builds | Script |
+|---|---|---|
+| Rubrehose → Build Persistent UI → HUD Elements | §A: currency pill, menu button, cast-a-net icon, salvage crate meter, banked critters icon | `PersistentHUDBuilder.cs` |
+| Rubrehose → Build Persistent UI → Fast-Travel Ribbon | §A: the 6th persistent element — collapsed handle + expanding ribbon | `FastTravelRibbonBuilder.cs` |
+| Rubrehose → Build Persistent UI → Menu Drawer | §C: right-edge slide-in drawer, 6 placeholder entry rows | `MenuDrawerBuilder.cs` |
+| Rubrehose → Build Landing Cove | §B: Dock/Shoreline/Camp/Frontier world-space clusters | `LandingCoveBuilder.cs` |
 
-## 3. Crew list prefab
+Run all four. Everything's placeholder primitive sprites (Unity's built-in Square/Circle/
+Knob) in the ink/cream/purple/teal palette from `rubrehose_prototype.html` — drop real art
+onto each object's `Image`/`SpriteRenderer` once it exists, a normal sprite swap, not
+something any of these tools need to know about.
 
-1. Build one crew row (name+level text, rate text, cost text, recruit button).
-2. Attach `CrewListItemUI.cs`, wire its fields, drag the row into `Assets/Prefabs/` to
-   make it a prefab, delete the scene instance.
-3. Assign that prefab to `MainHUDController.crewItemPrefab` and the list container to
-   `crewListContainer`.
+**Nothing here replaces §4 below** — the fight modal is still hand-built once; Landing
+Cove's Frontier-cluster mini-boss trigger just calls into it once you've wired
+`MiniBossTrigger.fightController` (see the flagged follow-ups at the bottom).
 
-## 4. Fight modal
+### About `MainHUDController.cs` / `CrewListItemUI.cs`
+
+These predate this revision and are now **partially superseded**: the old design put a
+driftwood counter, cove-progress bar, tap button, crew list, and construction section all
+in one HUD panel. Under the revised model, tap happens directly on world objects (Landing
+Cove's Shoreline driftwood), crew recruiting happens at world-space home spots (Camp
+cluster), and the persistent HUD only shows a small driftwood pill (§A) — there's no
+progress-bar or tap-button element in the new master table at all. Don't build the old
+HUD layout from earlier notes. The two scripts still compile and aren't deleted (crew
+management still needs *some* UI home eventually, per §E — "full management in Menu →
+Crew" — so `CrewListItemUI` may get reused there), but treat them as unwired legacy code
+for now, not something to attach to the scene.
+
+## 4. Fight modal — still hand-built, still needed
 
 1. Build a modal panel (serpent name, HP/armor stats, an HP `Slider`, a countdown
    timer text, a log text, Attack + Retreat buttons). Start it inactive.
 2. Attach `FightController.cs` (`Assets/Scripts/Combat`) to the panel root, wire its
    fields, and hook the Attack/Retreat buttons to `Attack()` / `Retreat()`.
-3. Save it as a prefab or keep it inline in the scene — either works, since
-   `MainHUDController` only needs a scene reference to call `OpenFight()`.
+3. Save it as a prefab or keep it inline in the scene.
+4. Select `LandingCove/Frontier/MiniBossTrigger` in the Hierarchy and drag this panel's
+   `FightController` onto its `Mini Boss Trigger` component's `Fight Controller` field —
+   that's the last wire needed for tapping the Frontier cluster to open a fight.
 
-## 5. Fast-travel handle/ribbon — generated, don't hand-build
-
-Menu: **Rubrehose → Build Fast-Travel Ribbon** (`Assets/Editor/FastTravelRibbonBuilder.cs`).
-It builds the whole hierarchy with exact `RectTransform` values instead of you eyeballing
-it: a `FastTravelCanvas` (Screen Space – Overlay, independent of the world-scroll Canvas,
-always screen-anchored bottom-left per `CAMERA_AND_UI_SPEC.md`) containing the collapsed
-handle and expanded ribbon, plus a `FastTravelSlotUI` prefab saved to
-`Assets/Prefabs/FastTravelSlot.prefab`. It also attaches `FastTravelRibbonController`,
-wires every field (including `worldCamera` → whatever `WorldScrollCamera` it finds in the
-scene), and adds an `EventSystem` if the scene doesn't have one yet.
-
-Run it any time after the scene is open. It's re-runnable: if `FastTravelCanvas` or the
-slot prefab already exist, it asks before deleting and rebuilding them from scratch — so
-don't hand-edit the generated objects or prefab directly, since a rebuild throws those
-edits away. Everything you'd actually want to customize lives on
-`FastTravelRibbonController`'s own fields instead:
-
-- `biomeThumbnails` / `biomeWorldX` — size-6 arrays in `BiomeCatalog` order (Wreck Beach,
-  The Shallows, The Green, The Bluffs, The Hollow, The Deep Reef). Only index 0 matters
-  for now; fill in the rest as each biome's terrain gets a real world-X position and a
-  thumbnail sprite.
-
-Everything's built with placeholder colors/shapes (the built-in circular "Knob" sprite for
-the handle/ring, flat ink/cream/purple fills from `rubrehose_prototype.html`'s palette) —
-drop real art onto the `Image` components under `FastTravelCanvas` and the slot prefab
-once it exists; that's a normal sprite swap, not something the tool needs to know about.
-
-The ribbon only ever shows biomes up to `GameManager.Instance.State.biomeUnlocked`
-(currently always 0 → Wreck Beach only, so you'll see exactly one slot). That field
-gets bumped by later biomes' construction gates once those exist — no ribbon changes
-needed when that happens.
-
-## 6. Art
+## 5. Art
 
 Folders under `Assets/Art/` are pre-organized to match Phase 1 of
 `rubrehose_art_checklist.md`:
@@ -105,26 +88,49 @@ Folders under `Assets/Art/` are pre-organized to match Phase 1 of
 - `Backgrounds/WreckBeach/` — sky, water, sand, wreckage hull, hut build states, campfire
 
 Import as PNG with transparent background, 2x resolution, separate layers per moving
-part (per the checklist's technical prep note) — the C# side doesn't care how many
-sprites a character is split into; that's purely how you build the GameObject hierarchy
-for procedural animation later.
+part (per the checklist's technical prep note).
 
-## 7. Try it
+## 6. Try it
 
-Press Play. Tap should add driftwood, recruiting BBW/BBC should start passive income,
-Fight should open the modal against the current cove's Hatchling/Shoal-back with a 30s
-timer, and horizontal drag anywhere in the scene (not starting on a UI element) should
-scroll the camera within the placeholder bounds. The fast-travel handle should show
-"Wreck Beach"; tapping it expands the ribbon with one highlighted slot, tapping outside
-or the × collapses it. Progress autosaves every 60s and on pause/quit to
-`Application.persistentDataPath`, with offline crew income (capped at 8h) applied on
-next launch.
+Press Play. Swiping left/right shouldn't move the camera yet (Landing Cove is the only
+unlocked cove, so there's nowhere to page to). Tapping a driftwood piece in the Shoreline
+cluster should add driftwood; tapping BBW's or BBC's home spot in Camp should recruit
+them (once affordable); tapping the Frontier trigger should open the fight modal once
+it's wired (§4). The fast-travel handle (bottom-left) should show "Wreck Beach" and
+expand to a one-slot ribbon on tap. The menu button (top-right) should slide the drawer
+in from the right with 6 rows (Captain's Log/Artifacts hidden until their unlock
+conditions are met). Progress autosaves every 60s and on pause/quit, with offline crew
+income (capped at 8h) applied on next launch.
 
 ## What's deliberately not here yet
 
-Prestige, Artifacts, Tidepooling/Foraging/Bottles, and biomes past Wreck Beach are all
-designed in `GAME_DESIGN.md` but out of scope for the Phase 1 checklist — add them as
-their own biomes unlock, following the same `Data/` + manager + UI-controller pattern.
-Multi-biome world scroll (real per-biome segment bounds and settle detection beyond
-"always Wreck Beach") is stubbed in `WorldScrollCamera.SettledBiomeIndex()` for the
-same reason — extend it once a second biome's terrain actually exists to scroll into.
+Flagged follow-ups from this revision, roughly in the order they'd block real play:
+
+- **Mini-boss fight rework** — `FightController`/`GameManager` still use the old
+  repeated-clears model (`coveClears` / `ClearsNeeded`). The revised spec wants unlimited
+  attempts and no clear-counter at the cove level; winning should set
+  `PlayerState.coveMinibossDefeated[coveIndex] = true` instead. Only the data fields
+  (`coveMinibossDefeated[]`, `coveConstructionRevealed[]`) exist on `PlayerState` so far —
+  nothing reads or writes them yet.
+- **Construction reveal** — per §B2, what's needed to cross to the next cove should only
+  be shown after the mini-boss is beaten (`coveConstructionRevealed[coveIndex]`). Not
+  implemented; the construction-gate logic in `GameManager` still works off the old model.
+- **Hut build-state binding** — `HutConstructionState.SetState(int)` exists but nothing
+  calls it yet; wire it to whatever ends up tracking construction progress.
+- **Cast a Net/Bottle Toss, Salvage Crate, Banked Critters** — visual-only in §A; no
+  backing systems exist. `PersistentHUDController.SetCastNetCharges/SetCrateFill/
+  SetBankedCritters` are ready to call once something produces those numbers.
+- **Message in a Bottle** — Shoreline's `BottleCastPoint` object exists with a collider
+  but no script; the system isn't implemented in Unity yet.
+- **Roaming hermit crab** — placed but static; the scripted Shoreline↔Camp path and
+  tap-to-catch reward aren't implemented.
+- **Tuggy / Prestige** — Dock's `Tuggy` object has no tap handler yet; per §D it should
+  open the "Tuggy's Supply Run" screen, which doesn't exist in Unity yet.
+- **Menu drawer content** — rows log a debug message on tap; no Crew/Upgrades/Captain's
+  Log/Milestones/Settings/Artifacts panels exist behind them yet. `MenuDrawerController.
+  artifactsUnlocked` is a placeholder Inspector bool — wire it to real prestige-count
+  state once Prestige exists.
+- **Debris Field / Low Tide Flats** — only Landing Cove (cove 0) is built. §B2 says the
+  same 4-cluster method applies once this one's validated.
+- Prestige, Artifacts, Tidepooling/Foraging, and biomes past Wreck Beach are still fully
+  out of scope, as before.

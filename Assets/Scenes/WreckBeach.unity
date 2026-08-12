@@ -206,13 +206,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 1698905366}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9b524532b051439cb45b2c9ccf007405, type: 3}
+  m_Script: {fileID: 11500000, guid: c82c54ed77b24af2862f3351ef2fbb5b, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  worldMinX: -2
-  worldMaxX: 2
-  dragThresholdPixels: 12
-  settleDelaySeconds: 0.15
+  coveScreenWidth: 5.625
+  swipeThresholdPixels: 80
+  maxSwipeDurationSeconds: 0.6
+  panDurationSeconds: 0.45
 --- !u!4 &1698905369
 Transform:
   m_ObjectHideFlags: 0
