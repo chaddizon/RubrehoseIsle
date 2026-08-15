@@ -47,7 +47,7 @@ namespace Rubrehose.EditorTools
             DestroyExistingChild(canvas.transform, RootName);
 
             var rootRt = CreateUIObject(RootName, canvas.transform);
-            Anchor(rootRt, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+            Stretch(rootRt, Vector2.zero, Vector2.zero);
 
             var driftwoodText = BuildCurrencyPill(rootRt);
             BuildMenuButton(rootRt, out var menuButton);
