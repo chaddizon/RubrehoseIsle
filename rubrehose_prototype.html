@@ -120,6 +120,7 @@
     <div class="tab" data-tab="bottle">Bottles</div>
     <div class="tab" data-tab="artifacts">Artifacts</div>
     <div class="tab" data-tab="milestones">Milestones</div>
+    <div class="tab" data-tab="balance">Balance</div>
   </div>
 
   <div class="panel active" id="panel-main">
@@ -130,7 +131,7 @@
         <div class="bar"><div id="coveBar" style="width:0%"></div></div>
         <button class="btn-tap" id="tapBtn">TAP THE SHORE (+<span id="tapAmt">1</span>)</button>
         <div class="row">
-          <button class="btn-pink btn-sm" id="bottleBurstBtn">Toss bottle (burst)</button>
+          <button class="btn-pink btn-sm" id="bottleBurstBtn">Cast a Net (<span id="bottleChargeLabel">3/3</span>)</button>
           <button class="btn-coral btn-sm" id="fightBtn">Fight serpent</button>
         </div>
       </div>
@@ -205,6 +206,22 @@
     <section>
       <h2>Milestones</h2>
       <div id="milestoneList"></div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-balance">
+    <section>
+      <h2>Expanded Upgrade Trees</h2>
+      <div style="font-size:11px;color:#5F5E5A;margin-bottom:10px;">Additive within each tree, multiplicative across trees — per EXPANDED_UPGRADES_AND_BALANCE.md</div>
+      <div id="critTreeList"></div>
+      <div id="crewSubTreeList" style="margin-top:10px;"></div>
+      <h2 style="margin-top:14px;">Captain's Log <span style="font-weight:400;color:#888;">(permanent, survives prestige)</span></h2>
+      <div style="font-size:11px;color:#5F5E5A;margin-bottom:8px;">Log Pages: <b id="logPagesDisplay">0</b> — earned from serpent clears &amp; milestones</div>
+      <div id="logTreeList"></div>
+    </section>
+    <section>
+      <h2>Balance readout</h2>
+      <div id="balanceReadout" style="font-size:12px;line-height:1.8;"></div>
     </section>
   </div>
 
@@ -287,7 +304,13 @@ const MILESTONES = [
 let state = {
   currencies:{driftwood:0, shells:0, tokens:0, fragments:0, glimmer:0, glass:0, shards:0},
   tapLevel:1,
-  biomeIdx:0, coveIdx:0, coveClears:0, biomeUnlocked:0,
+  biomeIdx:0, coveIdx:0, biomeUnlocked:0,
+  // mini-boss model (matches Obelisk exactly): persistent HP across attempts, no clear-count, 20-min cooldown
+  bossHpRemaining: null, // null = not yet encountered this cove's boss; set to full HP on first fight
+  bossDefeated: {}, // key "biomeIdx-coveIdx" -> true once defeated
+  constructionRevealed: {}, // key "biomeIdx-coveIdx" -> true once revealed (only after defeat)
+  fightCooldownSeconds: 0, // real seconds remaining before next attempt allowed
+  baseCooldownSeconds: 20*60, // 20 minutes, matches Obelisk exactly; reducible via upgrade later
   crew:[
     {id:"bbw", name:"BBW", cost:25, level:0, rate:0.5, unlockBiome:0},
     {id:"bbc", name:"BBC", cost:25, level:0, rate:0.5, unlockBiome:0},
@@ -313,7 +336,34 @@ let state = {
   ],
   bottles: [],
   bottleCap: 1,
-  bottlesCastTotal: 0
+  bottlesCastTotal: 0,
+
+  // expanded upgrade trees
+  crit: {
+    splash:      {level:0, baseCost:15},
+    superSplash: {level:0, baseCost:60},
+    megaSplash:  {level:0, baseCost:240}
+  },
+  crewSub: {
+    bbw:     {speed:0, specialty:0},
+    bbc:     {speed:0, specialty:0},
+    lucette: {speed:0, specialty:0},
+    lucy:    {speed:0, specialty:0},
+    feline:  {speed:0, specialty:0}
+  },
+  logPages: 0,
+  logTree: [
+    {id:"l1", name:"Sharper Tools", desc:"+5% all damage", cost:3, level:0, maxLevel:5},
+    {id:"l2", name:"Steady Hands", desc:"+5% tap tree bonus sum", cost:3, level:0, maxLevel:5},
+    {id:"l3", name:"Well-Fed Crew", desc:"+5% crew tree bonus sum", cost:4, level:0, maxLevel:5},
+    {id:"l4", name:"Ship's Fortune", desc:"+5% bottle tree bonus sum", cost:4, level:0, maxLevel:5}
+  ],
+
+  // Bottle Toss charge system
+  bottleChargeCap: 3,
+  bottleCharges: 3,
+  bottleRegenSeconds: 90,
+  bottleRegenProgress: 0
 };
 
 let fight = null;
@@ -327,10 +377,57 @@ function fmt(n){
 }
 function currentCoveHp(){ return hp(state.biomeIdx,state.coveIdx); }
 function currentCoveArmor(){ return armor(state.biomeIdx,state.coveIdx); }
-function currentCoveClearsNeeded(){ return clearsNeeded(state.biomeIdx,state.coveIdx); }
+function coveKey(){ return state.biomeIdx+'-'+state.coveIdx; }
+function isBossDefeated(){ return !!state.bossDefeated[coveKey()]; }
+function isConstructionRevealed(){ return !!state.constructionRevealed[coveKey()]; }
 function artifactBonus(id){ const a = ARTIFACTS.find(x=>x.id===id); return 1 + a.level*0.15; }
-function tapPowerEffective(){ return salvagePower(state.tapLevel) * state.multiplier * artifactBonus('a1'); }
-function crewRate(c){ return c.level * c.rate * state.multiplier * artifactBonus('a2'); }
+
+// --- Balance model: additive within a tree, multiplicative across trees ---
+function logTreeBonus(targetTag){
+  // sums % from Captain's Log nodes tagged for a given tree, always includes the "all damage" node
+  let sum = 0;
+  state.logTree.forEach(n=>{
+    if(n.id==='l1') sum += n.level*0.05; // all damage, applies everywhere
+    if(targetTag==='tap' && n.id==='l2') sum += n.level*0.05;
+    if(targetTag==='crew' && n.id==='l3') sum += n.level*0.05;
+    if(targetTag==='bottle' && n.id==='l4') sum += n.level*0.05;
+  });
+  return sum;
+}
+function tapTreeBonusSum(){
+  // additive within Tap tree: tap-power levels already baked into salvagePower base;
+  // this covers the *additional* Speed/Radius/Crit-adjacent flat bonuses
+  return 0.03*state.tapLevel*0 + logTreeBonus('tap'); // tap level itself feeds base, not this sum
+}
+function critMultiplierExpected(){
+  // expected-value multiplier from tiered crit (chance-weighted), additive chance/dmg within each tier
+  const s = state.crit.splash, ss = state.crit.superSplash, ms = state.crit.megaSplash;
+  const sChance = Math.min(1, s.level*0.02), sDmg = 1+s.level*0.15;
+  const ssChance = Math.min(1, ss.level*0.01), ssDmg = 1+ss.level*0.25;
+  const msChance = Math.min(1, ms.level*0.005), msDmg = 1+ms.level*0.40;
+  // expected multiplier: base 1x, +sChance*(sDmg-1) for splash, nested chance for deeper tiers
+  let ev = 1 + sChance*(sDmg-1);
+  ev += sChance*ssChance*(ssDmg-1);
+  ev += sChance*ssChance*msChance*(msDmg-1);
+  return ev;
+}
+function crewSubBonusSum(){
+  let sum = 0;
+  Object.values(state.crewSub).forEach(c=>{ sum += c.speed*0.06 + c.specialty*0.08; });
+  return sum + logTreeBonus('crew');
+}
+function bottleTreeBonusSum(){
+  return logTreeBonus('bottle');
+}
+function tapPowerEffective(){
+  const base = salvagePower(state.tapLevel) * state.multiplier * artifactBonus('a1');
+  const stackMultiplier = (1+tapTreeBonusSum()) * (1+crewSubBonusSum()*0.15) * critMultiplierExpected();
+  return base * stackMultiplier;
+}
+function crewRate(c){
+  const base = c.level * c.rate * state.multiplier * artifactBonus('a2');
+  return base * (1+crewSubBonusSum());
+}
 function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
 
 document.querySelectorAll('.tab').forEach(t=>{
@@ -367,13 +464,125 @@ function render(){
   if(activeTab==='bottle') renderBottles();
   if(activeTab==='artifacts') renderArtifacts();
   if(activeTab==='milestones') renderMilestones();
+  if(activeTab==='balance') renderBalance();
 }
+
+function renderBalance(){
+  document.getElementById('logPagesDisplay').textContent = fmt(state.logPages);
+
+  const critList = document.getElementById('critTreeList');
+  critList.innerHTML = '<h2>Tiered Crit (Tap tree)</h2>';
+  const critDefs = [
+    ['splash','Splash','chance +2%/lvl, dmg +15%/lvl'],
+    ['superSplash','Super Splash','requires Splash lvl 1+; chance +1%/lvl, dmg +25%/lvl'],
+    ['megaSplash','Mega Splash','requires Super Splash lvl 1+; chance +0.5%/lvl, dmg +40%/lvl']
+  ];
+  critDefs.forEach(([key,name,desc])=>{
+    const t = state.crit[key];
+    const cost = Math.round(t.baseCost*Math.pow(1.15,t.level));
+    const locked = key==='superSplash' && state.crit.splash.level<1 || key==='megaSplash' && state.crit.superSplash.level<1;
+    const div = document.createElement('div');
+    div.className='art-item';
+    div.innerHTML = `<div class="info"><b>${name} (Lv ${t.level})</b><span>${desc}</span></div>
+      <button class="${locked?'btn-disabled':'btn-coral'}" data-crit="${key}" ${locked?'disabled':''}>${locked?'Locked':fmt(cost)+' Driftwood'}</button>`;
+    critList.appendChild(div);
+  });
+  document.querySelectorAll('[data-crit]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const key = btn.dataset.crit;
+      const t = state.crit[key];
+      const cost = Math.round(t.baseCost*Math.pow(1.15,t.level));
+      if(state.currencies.driftwood>=cost){ state.currencies.driftwood-=cost; t.level++; render(); }
+    };
+  });
+
+  const crewSubList = document.getElementById('crewSubTreeList');
+  crewSubList.innerHTML = '<h2>Per-crew sub-trees</h2>';
+  state.crew.forEach(c=>{
+    if(c.unlockBiome > state.biomeUnlocked) return;
+    const sub = state.crewSub[c.id];
+    const speedCost = Math.round(20*Math.pow(1.2,sub.speed));
+    const specCost = Math.round(30*Math.pow(1.25,sub.specialty));
+    const div = document.createElement('div');
+    div.className='crew-item';
+    div.style.flexDirection='column';
+    div.style.alignItems='stretch';
+    div.innerHTML = `<b>${c.name}</b>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;">
+        <span style="font-size:10.5px;color:#5F5E5A;">Speed Lv${sub.speed}</span>
+        <button class="btn-purple" data-crewsub="${c.id}:speed" style="padding:4px 8px;">${fmt(speedCost)}</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;">
+        <span style="font-size:10.5px;color:#5F5E5A;">Specialty Lv${sub.specialty}</span>
+        <button class="btn-purple" data-crewsub="${c.id}:specialty" style="padding:4px 8px;">${fmt(specCost)}</button>
+      </div>`;
+    crewSubList.appendChild(div);
+  });
+  document.querySelectorAll('[data-crewsub]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const [id,stat] = btn.dataset.crewsub.split(':');
+      const sub = state.crewSub[id];
+      const cost = stat==='speed' ? Math.round(20*Math.pow(1.2,sub.speed)) : Math.round(30*Math.pow(1.25,sub.specialty));
+      if(state.currencies.driftwood>=cost){ state.currencies.driftwood-=cost; sub[stat]++; render(); }
+    };
+  });
+
+  const logList = document.getElementById('logTreeList');
+  logList.innerHTML='';
+  state.logTree.forEach(n=>{
+    const maxed = n.level>=n.maxLevel;
+    const div = document.createElement('div');
+    div.className='art-item';
+    div.innerHTML = `<div class="info"><b>${n.name} (Lv ${n.level}/${n.maxLevel})</b><span>${n.desc}</span></div>
+      <button class="${maxed?'btn-disabled':'btn-dark'}" data-log="${n.id}" ${maxed?'disabled':''}>${maxed?'Maxed':fmt(n.cost)+' Log Pages'}</button>`;
+    logList.appendChild(div);
+  });
+  document.querySelectorAll('[data-log]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const n = state.logTree.find(x=>x.id===btn.dataset.log);
+      if(n.level<n.maxLevel && state.logPages>=n.cost){ state.logPages-=n.cost; n.level++; render(); }
+    };
+  });
+
+  // balance readout: current total stack + estimated real-world time to defeat this cove's mini-boss
+  const dmg = tapPowerEffective() * artifactBonus('a3');
+  const arm = currentCoveArmor();
+  const netDmg = Math.max(0, dmg-arm);
+  const hpNow = currentCoveHp();
+  const hpRemaining = isBossDefeated() ? 0 : (state.bossHpRemaining!==null ? state.bossHpRemaining : hpNow);
+  const secPerFight = 30; // fight duration, matches Obelisk exactly
+  const dmgPerAttempt = netDmg>0 ? netDmg * secPerFight * 2 : 0; // ~2 taps/sec assumed
+  const attemptsToKill = netDmg>0 ? Math.max(1, Math.ceil(hpRemaining / dmgPerAttempt)) : Infinity;
+  const cooldownMin = state.baseCooldownSeconds/60; // 20 min, matches Obelisk exactly
+  const realMinutesToKillOne = netDmg>0 ? (attemptsToKill-1)*cooldownMin + (secPerFight/60) : Infinity;
+
+  document.getElementById('balanceReadout').innerHTML = `
+    Effective tap/hit damage: <b>${fmt(dmg)}</b><br>
+    Current cove armor: <b>${fmt(arm)}</b> · Boss HP remaining: <b>${isBossDefeated() ? 'Defeated' : fmt(hpRemaining)}</b><br>
+    Crit expected multiplier: <b>${critMultiplierExpected().toFixed(2)}x</b><br>
+    Crew tree bonus sum: <b>+${Math.round(crewSubBonusSum()*100)}%</b><br>
+    Attempts needed at current power: <b>${netDmg>0 ? attemptsToKill : 'cannot damage yet — armor too high'}</b><br>
+    Est. real time to defeat (20-min cooldown between attempts, no debug multiplier): <b>${netDmg>0 ? realMinutesToKillOne.toFixed(0)+' min' : 'N/A'}</b>
+    <div style="font-size:10.5px;color:#5F5E5A;margin-top:6px;">Matches Obelisk's real model: unlimited attempts, damage persists across tries, 20-min real cooldown between attempts. This estimate ignores the debug speed multiplier — use it to sanity-check pacing at real-world speed (1x).</div>
+  `;
+}
+
 
 function renderMain(){
   document.getElementById('biomeTag').textContent = BIOME_NAMES[state.biomeIdx];
-  document.getElementById('coveLine').textContent = COVE_NAMES[state.biomeIdx][state.coveIdx]+' · '+state.coveClears+'/'+currentCoveClearsNeeded()+' clears';
-  document.getElementById('coveBar').style.width = Math.min(100,(state.coveClears/currentCoveClearsNeeded()*100))+'%';
+  const bossName = SERPENT_NAMES[state.biomeIdx][state.coveIdx];
+  const statusText = isBossDefeated() ? bossName+' defeated' :
+    (state.fightCooldownSeconds>0 ? bossName+' — cooldown '+Math.ceil(state.fightCooldownSeconds/60)+'m' : bossName+' — ready to fight');
+  document.getElementById('coveLine').textContent = COVE_NAMES[state.biomeIdx][state.coveIdx]+' · '+statusText;
+  const hpForBar = state.bossHpRemaining!==null ? state.bossHpRemaining : currentCoveHp();
+  const barPct = isBossDefeated() ? 100 : Math.max(0, 100-(hpForBar/currentCoveHp()*100));
+  document.getElementById('coveBar').style.width = barPct+'%';
   document.getElementById('tapAmt').textContent = fmt(tapPowerEffective());
+
+  const fightBtn = document.getElementById('fightBtn');
+  if(isBossDefeated()){ fightBtn.classList.add('btn-disabled'); fightBtn.disabled=true; fightBtn.textContent='Boss defeated'; }
+  else if(state.fightCooldownSeconds>0){ fightBtn.classList.add('btn-disabled'); fightBtn.disabled=true; fightBtn.textContent='Cooldown '+Math.ceil(state.fightCooldownSeconds/60)+'m'; }
+  else { fightBtn.classList.remove('btn-disabled'); fightBtn.disabled=false; fightBtn.textContent='Fight serpent'; }
 
   const crewList = document.getElementById('crewList');
   crewList.innerHTML='';
@@ -393,9 +602,9 @@ function renderMain(){
   const consSection = document.getElementById('constructionSection');
   const consInfo = document.getElementById('constructionInfo');
   if(state.biomeUnlocked>=5){ consSection.style.display='none'; }
-  else if(state.coveIdx<2 || state.coveClears<currentCoveClearsNeeded()){
+  else if(!isConstructionRevealed()){
     consSection.style.display='block';
-    consInfo.innerHTML = '<div style="font-size:12px;color:#5F5E5A;">Clear all coves in '+BIOME_NAMES[state.biomeIdx]+' to unlock construction.</div>';
+    consInfo.innerHTML = '<div style="font-size:12px;color:#5F5E5A;">???  Defeat this cove\'s mini-boss to discover what\'s needed to cross onward.</div>';
   } else {
     consSection.style.display='block';
     const mat = CONSTRUCTION_MATERIAL[state.biomeIdx];
@@ -406,6 +615,17 @@ function renderMain(){
 
   const shardGain = Math.floor(Math.pow(state.totalEarnedThisRun/500,0.55));
   document.getElementById('shardPreview').textContent = '+'+fmt(shardGain)+' Compass Shards';
+
+  const bottleBtn = document.getElementById('bottleBurstBtn');
+  const chargeLabel = document.getElementById('bottleChargeLabel');
+  chargeLabel.textContent = state.bottleCharges+'/'+state.bottleChargeCap;
+  if(state.bottleCharges<1){
+    bottleBtn.classList.add('btn-disabled');
+    bottleBtn.disabled = true;
+  } else {
+    bottleBtn.classList.remove('btn-disabled');
+    bottleBtn.disabled = false;
+  }
 
   document.querySelectorAll('[data-crew]').forEach(btn=>{ btn.onclick=()=>recruitCrew(btn.dataset.crew); });
   const tapUp = document.getElementById('tapUpgradeBtn');
@@ -554,12 +774,23 @@ document.getElementById('castBottleBtn').onclick = ()=>{
   render();
 };
 document.getElementById('bottleBurstBtn').onclick = ()=>{
+  if(state.bottleCharges<1) return;
+  state.bottleCharges--;
   const burst = tapPowerEffective()*8;
   state.currencies.driftwood += burst;
   state.totalEarnedThisRun += burst;
   state.totalEarnedAllTime += burst;
   render();
 };
+
+function tickBottleRegen(seconds){
+  if(state.bottleCharges>=state.bottleChargeCap) { state.bottleRegenProgress=0; return; }
+  state.bottleRegenProgress += seconds;
+  if(state.bottleRegenProgress >= state.bottleRegenSeconds){
+    state.bottleRegenProgress -= state.bottleRegenSeconds;
+    state.bottleCharges = Math.min(state.bottleChargeCap, state.bottleCharges+1);
+  }
+}
 
 function renderArtifacts(){
   const list = document.getElementById('artifactList');
@@ -609,8 +840,16 @@ function doConstruction(){
   const need = 500*CLEAR_MULT[state.biomeIdx];
   if(state.currencies[cur]>=need){
     state.currencies[cur]-=need;
-    state.biomeIdx++; state.coveIdx=0; state.coveClears=0;
-    state.biomeUnlocked=Math.max(state.biomeUnlocked,state.biomeIdx);
+    if(state.coveIdx<2){
+      // advance to next cove within this biome
+      state.coveIdx++;
+      state.bossHpRemaining = null; // fresh boss encounter next fight
+    } else {
+      // final cove's construction unlocks the next BIOME
+      state.biomeIdx++; state.coveIdx=0;
+      state.bossHpRemaining = null;
+      state.biomeUnlocked=Math.max(state.biomeUnlocked,state.biomeIdx);
+    }
     render();
   }
 }
@@ -626,46 +865,55 @@ document.getElementById('prestigeBtn').onclick = ()=>{
 };
 
 document.getElementById('fightBtn').onclick = startFight;
-document.getElementById('closeFight').onclick = ()=>{ document.getElementById('fightModal').classList.remove('show'); clearInterval(fight?fight.timerHandle:null); fight=null; };
+document.getElementById('closeFight').onclick = ()=>{ endAttempt(); };
 function startFight(){
+  if(isBossDefeated() || state.fightCooldownSeconds>0) return; // guarded by button disable too
   const maxHp = currentCoveHp();
-  fight = { hpMax:maxHp, hp:maxHp, armor:currentCoveArmor(), timeLeft:30 };
+  if(state.bossHpRemaining===null) state.bossHpRemaining = maxHp; // first-ever encounter with this boss
+  fight = { hpMax:maxHp, armor:currentCoveArmor(), timeLeft:30 };
   document.getElementById('fightName').textContent = SERPENT_NAMES[state.biomeIdx][state.coveIdx];
-  document.getElementById('fightStats').textContent = 'HP '+fmt(maxHp)+' · Armor '+fmt(fight.armor);
-  document.getElementById('fightHpBar').style.width='100%';
+  document.getElementById('fightStats').textContent = 'HP '+fmt(state.bossHpRemaining)+' / '+fmt(maxHp)+' · Armor '+fmt(fight.armor);
+  document.getElementById('fightHpBar').style.width = Math.max(0,(state.bossHpRemaining/maxHp*100))+'%';
   document.getElementById('fightTimer').textContent = fight.timeLeft.toFixed(1)+'s';
-  document.getElementById('fightLog').textContent='';
+  document.getElementById('fightLog').textContent = 'Damage persists across attempts — no need to win in one try.';
   document.getElementById('fightModal').classList.add('show');
   fight.timerHandle = setInterval(()=>{
     fight.timeLeft -= 0.1;
     document.getElementById('fightTimer').textContent = Math.max(0,fight.timeLeft).toFixed(1)+'s';
     if(fight.timeLeft<=0){
       clearInterval(fight.timerHandle);
-      document.getElementById('fightLog').textContent = 'Out of time — damage is saved, try again!';
-      setTimeout(()=>{ document.getElementById('fightModal').classList.remove('show'); fight=null; },1200);
+      document.getElementById('fightLog').textContent = 'Out of time — damage saved. Cooldown starting...';
+      setTimeout(()=>{ endAttempt(); },1200);
     }
   },100);
 }
 document.getElementById('attackBtn').onclick = ()=>{
   if(!fight) return;
-  const rawDmg = tapPowerEffective() * artifactBonus('a3');
+  const rawDmg = tapPowerEffective() * artifactBonus('a3'); // tapPowerEffective already folds in crit EV + crew/log bonuses
   const dmg = Math.max(0, rawDmg - fight.armor);
-  if(dmg<=0){ document.getElementById('fightLog').textContent = "Your damage can't overcome its armor yet!"; return; }
-  fight.hp -= dmg;
-  document.getElementById('fightHpBar').style.width = Math.max(0,(fight.hp/fight.hpMax*100))+'%';
-  if(fight.hp<=0){
+  if(dmg<=0){ document.getElementById('fightLog').textContent = "Your damage can't overcome its armor yet — keep upgrading!"; return; }
+  state.bossHpRemaining -= dmg;
+  document.getElementById('fightHpBar').style.width = Math.max(0,(state.bossHpRemaining/fight.hpMax*100))+'%';
+  if(state.bossHpRemaining<=0){
     clearInterval(fight.timerHandle);
-    document.getElementById('fightLog').textContent = 'Defeated! Clear recorded.';
-    winFight();
-    setTimeout(()=>{ document.getElementById('fightModal').classList.remove('show'); fight=null; },1000);
+    document.getElementById('fightLog').textContent = 'Defeated! A path forward is revealed...';
+    defeatBoss();
+    setTimeout(()=>{ document.getElementById('fightModal').classList.remove('show'); fight=null; },1200);
   }
 };
-function winFight(){
-  state.coveClears++;
+function endAttempt(){
+  // called on retreat or timeout: no clear-count, just start the real Obelisk-style cooldown
+  document.getElementById('fightModal').classList.remove('show');
+  if(fight) clearInterval(fight.timerHandle);
+  fight = null;
+  if(!isBossDefeated()) state.fightCooldownSeconds = state.baseCooldownSeconds;
+  render();
+}
+function defeatBoss(){
+  state.bossDefeated[coveKey()] = true;
+  state.constructionRevealed[coveKey()] = true; // reveal happens immediately on defeat, per spec
   state.totalClears++;
-  const cur = BIOME_CURRENCY[state.biomeIdx];
-  state.currencies[cur] += 50*CLEAR_MULT[state.biomeIdx]*state.multiplier/10;
-  if(state.coveClears>=currentCoveClearsNeeded() && state.coveIdx<2){ state.coveIdx++; state.coveClears=0; }
+  state.logPages += 1;
   render();
 }
 
@@ -674,7 +922,12 @@ function tickPassive(seconds){
   state.crew.forEach(c=>{ if(c.unlockBiome<=state.biomeUnlocked) total+=crewRate(c); });
   if(total>0) addDriftwood(total*seconds);
 }
-setInterval(()=>{ tickPassive(0.5); render(); },500);
+function tickFightCooldown(seconds){
+  if(state.fightCooldownSeconds>0){
+    state.fightCooldownSeconds = Math.max(0, state.fightCooldownSeconds - seconds*state.multiplier);
+  }
+}
+setInterval(()=>{ tickPassive(0.5); tickBottleRegen(0.5); tickFightCooldown(0.5); render(); },500);
 
 function showToast(msg){
   const t = document.getElementById('offlineToast');
@@ -705,7 +958,7 @@ BIOME_NAMES.forEach((name,i)=>{ const opt=document.createElement('option'); opt.
 jumpSelect.onchange = ()=>{
   const idx = parseInt(jumpSelect.value);
   state.biomeIdx=idx; state.biomeUnlocked=Math.max(state.biomeUnlocked,idx);
-  state.coveIdx=0; state.coveClears=0; render();
+  state.coveIdx=0; state.bossHpRemaining=null; render();
 };
 document.getElementById('resetBtn').onclick = ()=>{ location.reload(); };
 
