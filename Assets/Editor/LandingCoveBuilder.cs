@@ -30,6 +30,13 @@ namespace Rubrehose.EditorTools
         private const float IslandMinX = BeachMinX + 0.25f * (2f * HalfWidth); // 0.449
         private const float IslandMaxX = HalfWidth;
 
+        private static readonly string[] DriftwoodSpritePaths =
+        {
+            "Assets/Art/WorldObjects/Driftwood/driftwood_pixel_1.png",
+            "Assets/Art/WorldObjects/Driftwood/driftwood_pixel_2.png",
+            "Assets/Art/WorldObjects/Driftwood/driftwood_pixel_3.png",
+        };
+
         [MenuItem("Rubrehose/Build Landing Cove")]
         public static void Build()
         {
@@ -87,8 +94,9 @@ namespace Rubrehose.EditorTools
             float[] driftwoodX = { Mathf.Lerp(BeachMinX, IslandMinX, 0.2f), Mathf.Lerp(BeachMinX, IslandMinX, 0.5f), Mathf.Lerp(BeachMinX, IslandMinX, 0.8f) };
             for (int i = 0; i < driftwoodX.Length; i++)
             {
+                var driftwoodSprite = AssetDatabase.LoadAssetAtPath<Sprite>(DriftwoodSpritePaths[i % DriftwoodSpritePaths.Length]);
                 var piece = CreateWorldSprite($"Driftwood_{i + 1}", cluster.transform,
-                    new Vector2(driftwoodX[i], -1.7f + (i % 2 == 0 ? 0f : -0.1f)), 1f, CircleSprite(), PlaceholderThumbColor, 2);
+                    new Vector2(driftwoodX[i], -1.7f + (i % 2 == 0 ? 0f : -0.1f)), 1f, driftwoodSprite, Color.white, 2);
                 piece.AddComponent<BoxCollider2D>();
                 piece.AddComponent<TappableDriftwood>();
             }
