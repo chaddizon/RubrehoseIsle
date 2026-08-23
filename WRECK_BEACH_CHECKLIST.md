@@ -1,5 +1,7 @@
 # Wreck Beach — Full Completion Checklist
 
+**Note:** this doc was originally written for illustrated/vector art, before the pivot to pixel art. Dimensions below reflect that original plan — when a real pixel-art asset's size doesn't match a row here, check whether the row is simply stale (like driftwood's was) before assuming the art is wrong. Update rows as real pixel-art conventions get established, rather than forcing finished art backward to match outdated numbers.
+
 Everything needed for Wreck Beach to be a complete, polished, playable vertical slice — combining Unity/code tasks (for the Claude Code session) with art tasks (for you, with dimensions specified).
 
 ## Already done ✅
@@ -65,9 +67,9 @@ All exports: PNG, transparent background, @2x resolution (i.e. export at 2x the 
 ### World objects
 | Asset | Size (@1x) | Notes |
 |---|---|---|
-| Driftwood piece (tappable), variant 1 | 60×40px | Small, scattered on beach |
-| Driftwood piece, variant 2 | 60×40px | For visual variety when multiple spawn |
-| Driftwood piece, variant 3 | 50×35px | |
+| Driftwood piece (tappable), variant 1 | 120×80px displayed (24×16 native pixel grid @5x) | Deliberately generous for tap ergonomics — driftwood is the single most-tapped element in the game, and Apple's HIG recommends ~44×44pt minimum comfortable touch targets. Do not shrink to match older vector-era sizing. |
+| Driftwood piece, variant 2 | 120×80px displayed (24×16 native pixel grid @5x) | Same size as variant 1 |
+| Driftwood piece, variant 3 | ~100×70px displayed (slightly smaller native grid @5x) | Subtly smaller than 1/2 for visual variety only — keep the difference small enough that tap comfort isn't affected |
 | Hut — rubble state | 140×110px | Starting/unbuilt look |
 | Hut — half-built state | 140×110px | Same footprint, more complete |
 | Hut — complete state | 140×110px | Same footprint, fully built |
