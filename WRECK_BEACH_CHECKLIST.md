@@ -2,6 +2,8 @@
 
 **Note:** this doc was originally written for illustrated/vector art, before the pivot to pixel art. Dimensions below reflect that original plan — when a real pixel-art asset's size doesn't match a row here, check whether the row is simply stale (like driftwood's was) before assuming the art is wrong. Update rows as real pixel-art conventions get established, rather than forcing finished art backward to match outdated numbers.
 
+**Art direction rule (locked): characters are monochrome, environment/props are colorful.** Characters = BBW, BBC, Lucy, Lucette, The Feline, Tuggy, the hermit crab, and the bottle (counts as a character due to its recurring hand-holding-bottle brand imagery) — all black/white/grayscale. Environment and props = backgrounds, the hut, campfire, driftwood, the flag marker — all full color. This creates deliberate visual contrast, keeping the cast as the clear focal point against a vibrant world.
+
 Everything needed for Wreck Beach to be a complete, polished, playable vertical slice — combining Unity/code tasks (for the Claude Code session) with art tasks (for you, with dimensions specified).
 
 ## Already done ✅

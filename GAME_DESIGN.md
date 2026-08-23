@@ -88,10 +88,10 @@ NOT a copy of Obelisk's UI (icon-grid-behind-a-button + Pins system). Full Rubre
 - Disembodied-eyes / heart-glasses motifs as rare-event/critical/jackpot indicators
 - "BE BAD!" lettering style applied to action buttons
 - Checkerboard pattern as a recurring functional UI element
-- Monochrome-leaning palette (final call still open — could be full black/white/grayscale, or the black/cream/purple/teal/pink/coral palette seen in reference art)
+- **Palette (LOCKED): characters are monochrome, environment/props are colorful.** Characters = BBW, BBC, Lucy, Lucette, The Feline, Tuggy, the hermit crab, and the bottle (counts as a character due to its recurring hand-holding-bottle brand imagery) — all black/white/grayscale. Environment and props = backgrounds, the hut, campfire, driftwood, the flag marker — all full color, matching the established colorful pixel-art style. This creates deliberate visual contrast, keeping the cast as the clear focal point against a vibrant world.
 
 ## Animation approach
-No rigged animation initially (solo artist, no animation skill). Code-driven procedural animation only: idle bounce/sway, tap-reaction squash-and-stretch, UI motion (pop-ins, slides), simple pose-swap cycling if multiple static poses are provided per character. Real rigged animation (Rive or Spine) is a possible future upgrade, likely starting with BBW and Lucy if pursued.
+Pivoted from vector illustration to pixel art mid-project (see WRECK_BEACH_CHECKLIST.md note). Procedural animation still applies for position-only movement (e.g. Tuggy's idle float/bob), but position must snap to whole-pixel increments each frame to avoid shimmer/blur — fractional/smooth movement breaks pixel art even with Point-filter texture import. For anything involving shape change (flame flicker, cloth flutter, walk cycles), use short hand-drawn frame loops instead of code-driven scaling/skewing, which blurs pixel art. Established frame-count conventions so far: ambient idle effects (campfire, flag flutter) ~3-5 frames; character walk cycles ~3-4 frames. Real rigged animation (Rive or Spine) remains a possible future upgrade but is now a lower priority given the pixel-art direction's own frame-based conventions are working well.
 
 ## Tech stack
 - **Engine**: Unity (C#), for iOS + Android
