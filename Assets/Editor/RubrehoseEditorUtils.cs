@@ -121,11 +121,42 @@ namespace Rubrehose.EditorTools
 
         // --- World-space (SpriteRenderer) ------------------------------------
 
-        // Unity's built-in 2D primitive sprites (same ones GameObject > 2D Object > Sprites uses).
-        public static Sprite SquareSprite() => AssetDatabase.GetBuiltinExtraResource<Sprite>("Sprites/Square.png");
-        public static Sprite CircleSprite() => AssetDatabase.GetBuiltinExtraResource<Sprite>("Sprites/Circle.png");
+        // AssetDatabase.GetBuiltinExtraResource<Sprite>("Sprites/Square.png"/"Sprites/Circle.png")
+        // was returning null in this project (verified: Tuggy and Hut's SpriteRenderer.sprite
+        // both came back "None" in the Inspector despite CreateWorldSprite assigning them) —
+        // reason unconfirmed, not worth chasing further. A Sprite.Create()-generated
+        // replacement doesn't work either: it's a session-only in-memory object with no
+        // AssetDatabase entry, so it doesn't survive the domain reload Unity does on entering
+        // Play mode (visible right after Build, gone the moment Play starts). Loading a real
+        // committed texture asset instead — same reliable pattern as the driftwood sprites —
+        // is the only approach proven to survive both. 100x100 @ 100 px/unit = exactly 1 world
+        // unit, matching the old builtin sprites' size so scale/collider-fit math is unaffected.
+        // Both shapes share the one placeholder for now — shape doesn't matter for a
+        // solid-color placeholder, only the SpriteRenderer's tint color does.
+        private const string PlaceholderSpritePath = "Assets/Art/WorldObjects/Placeholder/placeholder_square.png";
 
-        public static GameObject CreateWorldSprite(string name, Transform parent, Vector2 position, float uniformScale, Sprite sprite, Color color, int sortingOrder)
+        public static Sprite SquareSprite() => PlaceholderSprite();
+        public static Sprite CircleSprite() => PlaceholderSprite();
+
+        private static Sprite PlaceholderSprite()
+        {
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderSpritePath);
+            if (sprite == null)
+            {
+                Debug.LogWarning("PlaceholderSprite: couldn't load '" + PlaceholderSpritePath + "' as a Sprite — " +
+                                  "check its import settings (Texture Type must be 'Sprite (2D and UI)').");
+            }
+            return sprite;
+        }
+
+        // Placeholder squares/circles are otherwise indistinguishable at a glance — flip this
+        // off once real art starts replacing them and the GameObject name in the Hierarchy is
+        // enough context again.
+        private const bool ShowDebugLabels = true;
+
+        // showDebugLabel lets callers opt individual objects out once they've got real art —
+        // defaults to true so every existing call site keeps labeling until told otherwise.
+        public static GameObject CreateWorldSprite(string name, Transform parent, Vector2 position, float uniformScale, Sprite sprite, Color color, int sortingOrder, bool showDebugLabel = true)
         {
             var go = new GameObject(name);
             Undo.RegisterCreatedObjectUndo(go, "Build Rubrehose UI");
@@ -138,7 +169,68 @@ namespace Rubrehose.EditorTools
             renderer.color = color;
             renderer.sortingOrder = sortingOrder;
 
+            if (showDebugLabel) AddDebugNameLabel(go);
+
             return go;
+        }
+
+        // World-space name tag floating above a placeholder object, always upright and
+        // consistently sized regardless of the object's own uniformScale (which would
+        // otherwise shrink/enlarge a naively-parented child label right along with it).
+        // Public so callers building a multi-object hierarchy (e.g. DriftwoodPiece's
+        // static root + animated visual child) can attach the label to whichever part
+        // should stay put — the root, not whatever's being animated. Gated by
+        // ShowDebugLabels internally so every call site stays consistent from one flag.
+        public static void AddDebugNameLabel(GameObject go)
+        {
+            if (!ShowDebugLabels) return;
+
+            var labelGo = new GameObject("DebugLabel");
+            Undo.RegisterCreatedObjectUndo(labelGo, "Build Rubrehose UI");
+            labelGo.transform.SetParent(go.transform, false);
+
+            float parentScale = go.transform.localScale.x;
+            float compensate = Mathf.Approximately(parentScale, 0f) ? 1f : 1f / parentScale;
+            labelGo.transform.localPosition = new Vector3(0f, 0.8f * compensate, 0f);
+            labelGo.transform.localScale = Vector3.one * compensate;
+
+            var tmp = labelGo.AddComponent<TextMeshPro>();
+            tmp.text = go.name;
+            tmp.fontSize = 3;
+            tmp.color = Color.black;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.enableWordWrapping = false;
+
+            var mr = labelGo.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 1000; // always draw above every placeholder sprite
+        }
+
+        // GameObject.AddComponent<BoxCollider2D>() does NOT auto-fit to the sibling
+        // SpriteRenderer's bounds — that convenience only fires when a BoxCollider2D is
+        // added via the Inspector's "Add Component" button. From editor script it leaves
+        // the collider at Unity's raw default, which serializes out to a near-zero
+        // {0.0001, 0.0001} size — an effectively unclickable hitbox. Fit it explicitly.
+        public static BoxCollider2D AddFittedBoxCollider2D(GameObject go) =>
+            AddFittedBoxCollider2D(go, go.GetComponent<SpriteRenderer>());
+
+        // Overload for hierarchies where the collider's GameObject isn't the one holding
+        // the SpriteRenderer — e.g. DriftwoodPiece, where the collider sits on a static
+        // root so tap detection is unaffected by the animated visual child shrinking/
+        // fading during its collect/wash-up animation.
+        public static BoxCollider2D AddFittedBoxCollider2D(GameObject go, SpriteRenderer rendererForBounds)
+        {
+            var collider = go.AddComponent<BoxCollider2D>();
+            if (rendererForBounds != null && rendererForBounds.sprite != null)
+            {
+                collider.size = rendererForBounds.sprite.bounds.size;
+            }
+            else
+            {
+                Debug.LogWarning("AddFittedBoxCollider2D: '" + go.name + "' has no sprite to fit against " +
+                                  "(null sprite or missing SpriteRenderer) — collider left at Unity's default " +
+                                  "size, which is effectively unclickable. Fix the sprite reference and rebuild.");
+            }
+            return collider;
         }
     }
 }

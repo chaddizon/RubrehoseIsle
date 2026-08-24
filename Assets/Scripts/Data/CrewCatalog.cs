@@ -25,7 +25,7 @@ namespace Rubrehose.Data
         public static readonly CrewDefinition[] WreckBeachCrew =
         {
             new CrewDefinition("bbw", "BBW", 25, 0.5),
-            new CrewDefinition("bbc", "BBC", 25, 0.5),
+            new CrewDefinition("bbc", "Big Bad 'Coon", 25, 0.5),
         };
 
         public static CrewDefinition Find(string id) => Array.Find(WreckBeachCrew, d => d.id == id);
