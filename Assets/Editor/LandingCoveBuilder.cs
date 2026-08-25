@@ -32,16 +32,17 @@ namespace Rubrehose.EditorTools
             "Assets/Art/WorldObjects/Driftwood/driftwood3.png",
         };
 
-        // 128x96px each, imported at 100px/unit (default) so they render at their true
-        // 1.28x0.96-unit footprint — unlike driftwood, these were authored to display at
-        // exactly this pixel size, not exported @2x for a smaller intended footprint.
-        private const string HutRubbleSpritePath = "Assets/Art/WorldObjects/Hut/hut_stage1_rubble.png";
-        private const string HutHalfBuiltSpritePath = "Assets/Art/WorldObjects/Hut/hut_stage2_halfbuilt.png";
-        private const string HutCompleteSpritePath = "Assets/Art/WorldObjects/Hut/hut_stage3_complete.png";
+        // 192x144px each, imported at 100px/unit (default) so they render at their true
+        // 1.92x1.44-unit footprint — a larger, more elaborate replacement for the original
+        // 128x96 set. Content bounds grow naturally across the sequence (stage2 127px tall,
+        // stage3 144px edge-to-edge), so HutConstructionState needs no compensating offset.
+        private const string HutRubbleSpritePath = "Assets/Art/WorldObjects/Hut/stage1hut.png";
+        private const string HutHalfBuiltSpritePath = "Assets/Art/WorldObjects/Hut/stage2hut.png";
+        private const string HutCompleteSpritePath = "Assets/Art/WorldObjects/Hut/stage3hut.png";
 
         // 64x56px each, imported at 100px/unit (default) so they render at their true
-        // 0.64x0.56-unit footprint. Content bounds are near-identical across all four frames
-        // (unlike Hut's half-built stage), so LoopingFrameAnimator needs no per-frame offset.
+        // 0.64x0.56-unit footprint. Content bounds are near-identical across all four frames,
+        // so LoopingFrameAnimator needs no per-frame offset.
         private static readonly string[] CampfireSpritePaths =
         {
             "Assets/Art/WorldObjects/Campfire/campfire1.png",
@@ -115,41 +116,63 @@ namespace Rubrehose.EditorTools
         // footprint — not part of the idle/working replacement, still the original canvas size.
         private const string BBCTapReactionSpritePath = "Assets/Art/Characters/BBC/bbc_tapreaction.png";
 
-        // 192x344px, imported at 34.133333 px/unit (Assets/Art/.../landingcove1_final.png.meta)
-        // so it exactly covers the cove's full width (coveScreenWidth) at scale 1, and is a
-        // hair taller than the camera's viewport (10.078 vs 2x orthoSize's 10) rather than
-        // shorter, so it never leaves a gap at top/bottom. Anchors below map against this
-        // actual rendered footprint, not just the camera viewport, so they land exactly where
-        // they look right against the art regardless of that small overflow.
-        private const string BackgroundSpritePath = "Assets/Art/Backgrounds/WreckBeach/landingcove1_final.png";
+        // 192x344px, imported at 34.133333 px/unit (Assets/Art/.../landingcove1.png.meta) so it
+        // exactly covers the cove's full width (coveScreenWidth) at scale 1, and is a hair
+        // taller than the camera's viewport (10.078 vs 2x orthoSize's 10) rather than shorter,
+        // so it never leaves a gap at top/bottom. Anchors below map against this actual
+        // rendered footprint, not just the camera viewport, so they land exactly where they
+        // look right against the art regardless of that small overflow.
+        private const string BackgroundSpritePath = "Assets/Art/Backgrounds/WreckBeach/landingcove1.png";
         private const float BackgroundWidth = HalfWidth * 2f;
         private const float BackgroundHeight = 344f / 34.133333f;
 
-        // Anchors matched by eye against landingcove1_final.png's actual terrain.
-        private static readonly Vector2 TuggyAnchor = new Vector2(0.10f, 0.80f);
+        // Anchors matched by eye against landingcove1.png's actual terrain (taller dune
+        // composition, replacing the prior background of the same 192x344px footprint).
+        private static readonly Vector2 TuggyAnchor = new Vector2(0.18f, 0.85f);
         private static readonly Vector2[] DriftwoodAnchors =
         {
-            new Vector2(0.46f, 0.76f),
-            new Vector2(0.50f, 0.78f),
-            new Vector2(0.54f, 0.80f),
+            new Vector2(0.42f, 0.80f),
+            new Vector2(0.50f, 0.82f),
+            new Vector2(0.58f, 0.80f),
         };
-        // The flag pole marks the cast spot on the sand (always visible, purely decorative).
-        // The actual bottle is a separate object out in the water to the pole's left, hidden
-        // until a cast bottle washes back up — initial guess at (0.08, 0.72), not yet visually
-        // confirmed against the art the way the other anchors in this file have been.
-        private static readonly Vector2 BottleFlagPoleAnchor = new Vector2(0.20f, 0.70f);
-        private static readonly Vector2 BottleAnchor = new Vector2(0.13f, 0.72f);
+        // The flag pole marks the cast spot on the sand (always visible, purely decorative) —
+        // shifted further left (another ~12% of screen width, left of the island) of its prior
+        // spot. The actual bottle is a separate object out in the water to the pole's left,
+        // hidden until a cast bottle washes back up — kept at the same relative offset from the
+        // pole so the flag stays in the sand while the bottle stays in the water; still not yet
+        // visually confirmed against the art the way the other anchors in this file have been.
+        private static readonly Vector2 BottleFlagPoleAnchor = new Vector2(0.11f, 0.70f);
+        private static readonly Vector2 BottleAnchor = new Vector2(0.04f, 0.72f);
 
         // Roaming path isn't implemented yet (BuildRoamingCritter placeholder-parks the critter
-        // at Start) — End is kept here so it's not lost once that behavior exists.
-        private static readonly Vector2 CritterStartAnchor = new Vector2(0.74f, 0.78f);
-        private static readonly Vector2 CritterEndAnchor = new Vector2(0.88f, 0.80f);
+        // at Start) — End is kept here so it's not lost once that behavior exists. Shifted right
+        // and up from its original placement; End is capped at 0.98 (the raw requested shift
+        // would land past the background's right edge at u=1.0).
+        private static readonly Vector2 CritterStartAnchor = new Vector2(0.80f, 0.76f);
+        private static readonly Vector2 CritterEndAnchor = new Vector2(0.98f, 0.76f);
 
-        private static readonly Vector2 HutAnchor = new Vector2(0.40f, 0.51f);
-        private static readonly Vector2 CampfireAnchor = new Vector2(0.50f, 0.58f);
-        private static readonly Vector2 BBWHomeSpotAnchor = new Vector2(0.27f, 0.64f);
-        private static readonly Vector2 BBCHomeSpotAnchor = new Vector2(0.61f, 0.64f);
-        private static readonly Vector2 MiniBossTriggerAnchor = new Vector2(0.88f, 0.58f);
+        private static readonly Vector2 HutAnchor = new Vector2(0.50f, 0.62f);
+        private static readonly Vector2 CampfireAnchor = new Vector2(0.58f, 0.64f);
+        private static readonly Vector2 BBWHomeSpotAnchor = new Vector2(0.44f, 0.68f);
+        // On the hill, above the rest of the Camp cluster at the dune's base — paired with
+        // BBCHomeSpotScale below so it still reads as further back/up via forced-perspective
+        // depth (flat 2D with depth layering, not true 3D), consistent with the rest of the cove.
+        private static readonly Vector2 BBCHomeSpotAnchor = new Vector2(0.50f, 0.42f);
+        private static readonly Vector2 MiniBossTriggerAnchor = new Vector2(0.90f, 0.48f);
+
+        // Forced-perspective depth cue for BBCHomeSpot's hillside placement: smaller apparent
+        // size reads as farther up/back on the hill. CreateWorldSprite's uniformScale param
+        // already supports this per-object override — every other anchor in this file just
+        // happens to pass 1f.
+        private const float BBCHomeSpotScale = 0.6f;
+
+        // Sized down off BBC/BBW's shared native footprint so BBW reads slightly smaller at
+        // her Camp-level spot, then bumped back up ~15% off that (0.6 * 1.15) per feedback.
+        private const float BBWHomeSpotScale = 0.69f;
+
+        // Sized up ~25% off BBC/BBW's shared native footprint — Tuggy is a background/distance
+        // plane, not tied to the forced-perspective hill scaling above.
+        private const float TuggyScale = 1.25f;
 
         private static Vector2 AnchorToWorld(Vector2 anchor) => new Vector2(
             Mathf.Lerp(-BackgroundWidth / 2f, BackgroundWidth / 2f, anchor.x),
@@ -238,10 +261,8 @@ namespace Rubrehose.EditorTools
             cluster.transform.SetParent(parent, false);
 
             // Background plane, implying distance across the water. No collider: purely
-            // decorative, never included in clickablePositions. Scale left at 1 (renders at
-            // the art's true footprint) as a reasonable default — visual size still to be
-            // tuned once it's actually on screen in Play mode.
-            var tuggy = CreateWorldSprite("Tuggy", cluster.transform, AnchorToWorld(TuggyAnchor), 1f,
+            // decorative, never included in clickablePositions.
+            var tuggy = CreateWorldSprite("Tuggy", cluster.transform, AnchorToWorld(TuggyAnchor), TuggyScale,
                 AssetDatabase.LoadAssetAtPath<Sprite>(TuggySpritePath), Color.white, 0, showDebugLabel: false);
             tuggy.AddComponent<PixelSnappedBob>();
         }
@@ -388,7 +409,7 @@ namespace Rubrehose.EditorTools
             var bbwIdleFrames = System.Array.ConvertAll(BBWIdleSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>);
             var bbwWorkingFrames = System.Array.ConvertAll(BBWWorkingSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>);
             var bbwTapReactionSprite = AssetDatabase.LoadAssetAtPath<Sprite>(BBWTapReactionSpritePath);
-            var bbw = CreateWorldSprite("BBWHomeSpot", cluster.transform, bbwPos, 1f, bbwIdleFrames[0], Color.white, 2, showDebugLabel: false);
+            var bbw = CreateWorldSprite("BBWHomeSpot", cluster.transform, bbwPos, BBWHomeSpotScale, bbwIdleFrames[0], Color.white, 2, showDebugLabel: false);
             var bbwCollider = AddFittedBoxCollider2D(bbw);
             CapColliderToNearestNeighbor(bbwCollider, bbwPos, clickablePositions, bbw.transform.localScale.x);
             var bbwSpot = bbw.AddComponent<CrewRecruitSpot>();
@@ -405,13 +426,22 @@ namespace Rubrehose.EditorTools
             bbwWorkingFramesProp.arraySize = bbwWorkingFrames.Length;
             for (int f = 0; f < bbwWorkingFrames.Length; f++) bbwWorkingFramesProp.GetArrayElementAtIndex(f).objectReferenceValue = bbwWorkingFrames[f];
             bbwAnimatorSo.FindProperty("tapReactionFrame").objectReferenceValue = bbwTapReactionSprite;
+            // Default idle rate (0.6fps, CrewHomeSpotAnimator's shared default) read as erratic
+            // for BBW's specific idle frames — eased down a bit just for this instance rather
+            // than lowering the shared default and affecting BBC too.
+            bbwAnimatorSo.FindProperty("idleFramesPerSecond").floatValue = 0.4f;
             bbwAnimatorSo.ApplyModifiedProperties();
 
             Vector2 bbcPos = AnchorToWorld(BBCHomeSpotAnchor);
             var bbcIdleFrames = System.Array.ConvertAll(BBCIdleSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>);
             var bbcWorkingFrames = System.Array.ConvertAll(BBCWorkingSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>);
             var bbcTapReactionSprite = AssetDatabase.LoadAssetAtPath<Sprite>(BBCTapReactionSpritePath);
-            var bbc = CreateWorldSprite("BBCHomeSpot", cluster.transform, bbcPos, 1f, bbcIdleFrames[0], Color.white, 2, showDebugLabel: false);
+            var bbc = CreateWorldSprite("BBCHomeSpot", cluster.transform, bbcPos, BBCHomeSpotScale, bbcIdleFrames[0], Color.white, 2, showDebugLabel: false);
+            // Mirrored left-right so BBC faces the opposite direction from his default art —
+            // flipX on the SpriteRenderer rather than a negative localScale, since
+            // CrewHomeSpotAnimator only ever reassigns .sprite (never touches flip state or
+            // scale), so this sticks across every idle/working/tap-reaction frame swap.
+            bbc.GetComponent<SpriteRenderer>().flipX = true;
             var bbcCollider = AddFittedBoxCollider2D(bbc);
             CapColliderToNearestNeighbor(bbcCollider, bbcPos, clickablePositions, bbc.transform.localScale.x);
             var bbcSpot = bbc.AddComponent<CrewRecruitSpot>();

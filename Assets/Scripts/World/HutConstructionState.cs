@@ -14,11 +14,11 @@ namespace Rubrehose.World
         [SerializeField] private Sprite halfBuiltSprite;
         [SerializeField] private Sprite completeSprite;
 
-        // hut_stage2_halfbuilt's content sits ~8px higher in its canvas than
-        // hut_stage3_complete's (taller roof peak from exposed rafter framing) — without
-        // this, the roofline would visually shift/shrink downward the moment construction
-        // finishes. World units at the project's 100px/unit import convention: 8px/100 = 0.08.
-        [SerializeField] private Vector2 halfBuiltVisualOffset = new Vector2(0f, -0.08f);
+        // stage2hut's content (127px tall) sits below stage3hut's (144px, edge-to-edge) —
+        // the structure grows naturally taller through the sequence, so no compensating
+        // offset is needed with this art set (unlike the previous hut_stage2_halfbuilt set,
+        // which sat ~8px higher than its complete stage and needed one).
+        [SerializeField] private Vector2 halfBuiltVisualOffset = Vector2.zero;
 
         private Vector3 _restLocalPosition;
 
