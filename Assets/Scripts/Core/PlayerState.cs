@@ -18,20 +18,31 @@ namespace Rubrehose.Core
         public int tapLevel = 1;
         public int coveIndex;
 
-        // Legacy repeated-clears gating (coveClears/constructionComplete). Superseded at
-        // the cove level by the mini-boss -> construction-reveal model below
-        // (CAMERA_AND_UI_SPEC.md "Cove-gate structure"), kept for now since FightController
-        // and GameManager still read them — rewiring that logic is a separate follow-up.
-        public int coveClears;
+        // Set once the FINAL cove's (Low Tide Flats) construction gate is paid — that
+        // crossing unlocks the next BIOME rather than advancing coveIndex
+        // (GameManager.BuildConstruction). Intermediate-cove crossings just increment
+        // coveIndex directly, so no per-cove flag is needed for those.
         public bool constructionComplete;
 
         // Per-cove mini-boss/construction-reveal flags (CAMERA_AND_UI_SPEC.md
         // "implementation notes", HUD_AND_LANDING_COVE_LAYOUT.md §B2). Indexed by cove
         // (0=Landing Cove, 1=Debris Field, 2=Low Tide Flats) — a biome is capped at 3 coves.
         // Beating coveMinibossDefeated[coveIndex] reveals what's needed to cross to the
-        // next cove; coveConstructionRevealed[coveIndex] tracks whether that's been shown yet.
+        // next cove (GameManager.RegisterMiniBossDefeat); coveConstructionRevealed[coveIndex]
+        // gates GameManager.BuildConstruction / ConstructionGate's hut-state visual.
         public bool[] coveMinibossDefeated = new bool[3];
         public bool[] coveConstructionRevealed = new bool[3];
+
+        // Current cove's mini-boss fight state (rubrehose_prototype.html, matching
+        // Obelisk's exact model): HP persists across attempts within a cove and only
+        // resets on advancing to a fresh cove — never on retreat/timeout. -1 = boss not
+        // yet encountered this cove (set to full HP on the first attempt).
+        public double bossHpRemaining = -1;
+
+        // Real seconds remaining before the next fight attempt is allowed. Set to
+        // GameFormulas.FightCooldownSeconds on retreat/timeout (not on defeat — no
+        // cooldown once the boss is dead), ticked down in GameManager.Update().
+        public float fightCooldownSeconds;
 
         // 0 = only Wreck Beach unlocked. Bumped when a later biome's construction
         // gate completes; drives the fast-travel ribbon (CAMERA_AND_UI_SPEC.md).

@@ -79,8 +79,9 @@ namespace Rubrehose.UI
 
             driftwoodText.text = Format.Number(gm.State.driftwood);
             biomeTagText.text = WreckBeachData.BiomeName;
-            coveLineText.text = $"{WreckBeachData.CoveNames[gm.State.coveIndex]} · {gm.State.coveClears}/{gm.ClearsNeeded} clears";
-            coveProgressSlider.value = Mathf.Clamp01((float)gm.State.coveClears / gm.ClearsNeeded);
+            coveLineText.text = $"{WreckBeachData.CoveNames[gm.State.coveIndex]} · " +
+                                 (gm.CoveMinibossDefeated ? "mini-boss defeated" : "mini-boss undefeated");
+            coveProgressSlider.value = gm.CoveMinibossDefeated ? 1f : 0f;
 
             tapAmountText.text = Format.Number(gm.TapPower);
 
@@ -89,19 +90,13 @@ namespace Rubrehose.UI
 
             foreach (var item in _crewItems) item.Refresh();
 
-            bool isLastCove = gm.State.coveIndex == WreckBeachData.CoveNames.Length - 1;
-            constructionSection.SetActive(isLastCove || gm.ConstructionUnlocked);
+            constructionSection.SetActive(gm.ConstructionUnlocked);
             if (gm.ConstructionUnlocked)
             {
-                constructionLabel.text = gm.State.constructionComplete
-                    ? "Crossing built — The Shallows awaits."
+                constructionLabel.text = gm.IsCoveConstructionComplete(gm.State.coveIndex)
+                    ? "Crossing built."
                     : $"Build the crossing — {Format.Number(gm.ConstructionCost)} Driftwood + {WreckBeachData.ConstructionMaterial}";
                 constructionButton.interactable = gm.CanBuildConstruction;
-            }
-            else if (isLastCove)
-            {
-                constructionLabel.text = $"Clear all coves in {WreckBeachData.BiomeName} to unlock construction.";
-                constructionButton.interactable = false;
             }
         }
     }

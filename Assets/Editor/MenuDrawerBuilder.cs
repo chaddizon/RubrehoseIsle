@@ -1,3 +1,4 @@
+using System.IO;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -9,9 +10,11 @@ using static Rubrehose.EditorTools.RubrehoseEditorUtils;
 
 namespace Rubrehose.EditorTools
 {
-    // Builds the menu drawer shell (HUD_AND_LANDING_COVE_LAYOUT.md §C) — a comic-panel-style
-    // slide-in from the right edge with 6 placeholder entry rows. Row taps just log for now;
-    // real per-entry panel content (Crew list, Upgrades tree, etc.) doesn't exist yet.
+    // Builds the menu drawer (HUD_AND_LANDING_COVE_LAYOUT.md §C) — a comic-panel-style
+    // slide-in from the right edge with 6 entry rows. Crew and Upgrades rows open real
+    // content panels (core-loop critical); the rest still just log until those systems
+    // exist. All click wiring lives on MenuDrawerController (assigned here via serialized
+    // fields, not edit-time AddListener) so it survives domain reload / Play mode.
     public static class MenuDrawerBuilder
     {
         private const string RootName = "MenuDrawer";
@@ -57,7 +60,9 @@ namespace Rubrehose.EditorTools
             panelBg.sprite = UISprite();
             panelBg.color = InkColorTranslucent;
 
-            var layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
+            var rowList = CreateUIObject("RowList", panel);
+            Stretch(rowList, Vector2.zero, Vector2.zero);
+            var layout = rowList.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.spacing = 8;
             layout.padding = new RectOffset(16, 16, 24, 16);
@@ -66,16 +71,17 @@ namespace Rubrehose.EditorTools
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
 
-            var crewRow = BuildRow(panel, "Crew");
-            var upgradesRow = BuildRow(panel, "Upgrades");
-            var captainsLogRow = BuildRow(panel, "Captain's Log");
-            var milestonesRow = BuildRow(panel, "Milestones");
-            var settingsRow = BuildRow(panel, "Settings");
-            var artifactsRow = BuildRow(panel, "Artifacts");
+            var crewRow = BuildRow(rowList, "Crew");
+            var upgradesRow = BuildRow(rowList, "Upgrades");
+            var captainsLogRow = BuildRow(rowList, "Captain's Log");
+            var milestonesRow = BuildRow(rowList, "Milestones");
+            var settingsRow = BuildRow(rowList, "Settings");
+            var artifactsRow = BuildRow(rowList, "Artifacts");
+
+            var crewPanel = BuildCrewPanel(panel);
+            var upgradesPanel = BuildUpgradesPanel(panel);
 
             var closeRt = CreateUIObject("CloseButton", panel);
-            var closeLayoutElement = closeRt.gameObject.AddComponent<LayoutElement>();
-            closeLayoutElement.ignoreLayout = true; // positioned manually in the panel's corner, not part of the row list
             Anchor(closeRt, new Vector2(1, 1), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -8), new Vector2(28, 28));
             var closeImage = closeRt.gameObject.AddComponent<Image>();
             closeImage.color = InkColor;
@@ -85,21 +91,35 @@ namespace Rubrehose.EditorTools
             Stretch(closeLabelRt, Vector2.zero, Vector2.zero);
             AddText(closeLabelRt.gameObject, "×", 18, CreamColor, TextAlignmentOptions.Center);
 
+            var backRt = CreateUIObject("BackButton", panel);
+            Anchor(backRt, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(8, -8), new Vector2(28, 28));
+            var backImage = backRt.gameObject.AddComponent<Image>();
+            backImage.color = InkColor;
+            var backButton = backRt.gameObject.AddComponent<Button>();
+            backButton.targetGraphic = backImage;
+            var backLabelRt = CreateUIObject("Label", backRt);
+            Stretch(backLabelRt, Vector2.zero, Vector2.zero);
+            AddText(backLabelRt.gameObject, "‹", 20, CreamColor, TextAlignmentOptions.Center);
+            backRt.gameObject.SetActive(false);
+
             var controller = Undo.AddComponent<MenuDrawerController>(rootRt.gameObject);
             var so = new SerializedObject(controller);
             so.FindProperty("panel").objectReferenceValue = panel;
+            so.FindProperty("catcherButton").objectReferenceValue = catcherButton;
+            so.FindProperty("closeButton").objectReferenceValue = closeButton;
+            so.FindProperty("crewRowButton").objectReferenceValue = crewRow.GetComponent<Button>();
+            so.FindProperty("upgradesRowButton").objectReferenceValue = upgradesRow.GetComponent<Button>();
+            so.FindProperty("captainsLogRowButton").objectReferenceValue = captainsLogRow.GetComponent<Button>();
+            so.FindProperty("milestonesRowButton").objectReferenceValue = milestonesRow.GetComponent<Button>();
+            so.FindProperty("settingsRowButton").objectReferenceValue = settingsRow.GetComponent<Button>();
+            so.FindProperty("artifactsRowButton").objectReferenceValue = artifactsRow.GetComponent<Button>();
+            so.FindProperty("contentBackButton").objectReferenceValue = backButton;
+            so.FindProperty("rowList").objectReferenceValue = rowList.gameObject;
+            so.FindProperty("crewPanel").objectReferenceValue = crewPanel;
+            so.FindProperty("upgradesPanel").objectReferenceValue = upgradesPanel;
             so.FindProperty("captainsLogRow").objectReferenceValue = captainsLogRow;
             so.FindProperty("artifactsRow").objectReferenceValue = artifactsRow;
             so.ApplyModifiedProperties();
-
-            catcherButton.onClick.AddListener(controller.Close);
-            closeButton.onClick.AddListener(controller.Close);
-            WireRow(crewRow, controller, "Crew");
-            WireRow(upgradesRow, controller, "Upgrades");
-            WireRow(captainsLogRow, controller, "Captain's Log");
-            WireRow(milestonesRow, controller, "Milestones");
-            WireRow(settingsRow, controller, "Settings");
-            WireRow(artifactsRow, controller, "Artifacts");
 
             EnsureEventSystem();
             Undo.CollapseUndoOperations(undoGroup);
@@ -107,7 +127,7 @@ namespace Rubrehose.EditorTools
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Selection.activeGameObject = rootRt.gameObject;
             Debug.Log("MenuDrawerBuilder: built '" + RootName + "' on " + PersistentCanvasName + " (starts off-screen — " +
-                       "that's the closed state, not a bug). Row taps just log for now.");
+                       "that's the closed state, not a bug). Crew/Upgrades rows open real panels; the rest still log.");
         }
 
         private static GameObject BuildRow(Transform panel, string label)
@@ -134,9 +154,123 @@ namespace Rubrehose.EditorTools
             return row.gameObject;
         }
 
-        private static void WireRow(GameObject row, MenuDrawerController controller, string label)
+        // --- Crew panel (Menu -> Crew, HUD_AND_LANDING_COVE_LAYOUT.md §E) --------------
+
+        private static GameObject BuildCrewPanel(Transform panel)
         {
-            row.GetComponent<Button>().onClick.AddListener(() => controller.OnEntryTapped(label));
+            var root = CreateUIObject("CrewPanel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, "Crew", 20, CreamColor, TextAlignmentOptions.Center);
+
+            var listContainerRt = CreateUIObject("ListContainer", root);
+            Stretch(listContainerRt, new Vector2(16, 16), new Vector2(-16, -56));
+            var listLayout = listContainerRt.gameObject.AddComponent<VerticalLayoutGroup>();
+            listLayout.spacing = 8;
+            listLayout.childControlWidth = true;
+            listLayout.childControlHeight = false;
+            listLayout.childForceExpandWidth = true;
+            listLayout.childForceExpandHeight = false;
+
+            var itemPrefab = BuildAndSaveCrewItemPrefab();
+
+            var panelController = root.gameObject.AddComponent<CrewMenuPanel>();
+            var so = new SerializedObject(panelController);
+            so.FindProperty("listContainer").objectReferenceValue = listContainerRt;
+            so.FindProperty("itemPrefab").objectReferenceValue = itemPrefab;
+            so.ApplyModifiedProperties();
+
+            return root.gameObject;
+        }
+
+        private static CrewListItemUI BuildAndSaveCrewItemPrefab()
+        {
+            var root = CreateUIObject("CrewListItem", null, registerUndo: false);
+            root.sizeDelta = new Vector2(0, 60);
+
+            var bg = root.gameObject.AddComponent<Image>();
+            bg.sprite = UISprite();
+            bg.color = InkColor;
+            var layoutElement = root.gameObject.AddComponent<LayoutElement>();
+            layoutElement.preferredHeight = 60;
+
+            var nameRt = CreateUIObject("NameText", root, registerUndo: false);
+            Stretch(nameRt, new Vector2(12, 32), new Vector2(-110, -4));
+            var nameText = AddText(nameRt.gameObject, "Name", 15, CreamColor, TextAlignmentOptions.BottomLeft);
+
+            var rateRt = CreateUIObject("RateText", root, registerUndo: false);
+            Stretch(rateRt, new Vector2(12, 6), new Vector2(-110, -32));
+            var rateText = AddText(rateRt.gameObject, "Rate", 13, PlaceholderThumbColor, TextAlignmentOptions.TopLeft);
+
+            var buttonRt = CreateUIObject("RecruitButton", root, registerUndo: false);
+            Anchor(buttonRt, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-8, 0), new Vector2(96, 48));
+            var buttonImage = buttonRt.gameObject.AddComponent<Image>();
+            buttonImage.sprite = UISprite();
+            buttonImage.color = TealAccent;
+            var button = buttonRt.gameObject.AddComponent<Button>();
+            button.targetGraphic = buttonImage;
+
+            var costRt = CreateUIObject("Label", buttonRt, registerUndo: false);
+            Stretch(costRt, new Vector2(4, 2), new Vector2(-4, -2));
+            var costText = AddText(costRt.gameObject, "Cost", 10, InkColor, TextAlignmentOptions.Center);
+
+            var item = root.gameObject.AddComponent<CrewListItemUI>();
+            var itemSo = new SerializedObject(item);
+            itemSo.FindProperty("nameText").objectReferenceValue = nameText;
+            itemSo.FindProperty("rateText").objectReferenceValue = rateText;
+            itemSo.FindProperty("costText").objectReferenceValue = costText;
+            itemSo.FindProperty("recruitButton").objectReferenceValue = button;
+            itemSo.ApplyModifiedProperties();
+
+            Directory.CreateDirectory("Assets/Prefabs");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root.gameObject, "Assets/Prefabs/CrewListItem.prefab");
+            Object.DestroyImmediate(root.gameObject);
+            return prefab.GetComponent<CrewListItemUI>();
+        }
+
+        // --- Upgrades panel (Menu -> Upgrades, HUD_AND_LANDING_COVE_LAYOUT.md §C) -------
+
+        private static GameObject BuildUpgradesPanel(Transform panel)
+        {
+            var root = CreateUIObject("UpgradesPanel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, "Upgrades", 20, CreamColor, TextAlignmentOptions.Center);
+
+            var tapRowRt = CreateUIObject("TapPowerRow", root);
+            Anchor(tapRowRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -56), new Vector2(-32, 72));
+            var tapRowBg = tapRowRt.gameObject.AddComponent<Image>();
+            tapRowBg.sprite = UISprite();
+            tapRowBg.color = InkColor;
+
+            var tapLabelRt = CreateUIObject("Label", tapRowRt);
+            Stretch(tapLabelRt, new Vector2(12, 40), new Vector2(-12, -8));
+            var tapLabel = AddText(tapLabelRt.gameObject, "Tap Power", 13, CreamColor, TextAlignmentOptions.TopLeft);
+
+            var tapButtonRt = CreateUIObject("UpgradeButton", tapRowRt);
+            Anchor(tapButtonRt, new Vector2(0, 0), new Vector2(0, 0), new Vector2(0, 0), new Vector2(12, 8), new Vector2(140, 32));
+            var tapButtonBg = tapButtonRt.gameObject.AddComponent<Image>();
+            tapButtonBg.sprite = UISprite();
+            tapButtonBg.color = TealAccent;
+            var tapButton = tapButtonRt.gameObject.AddComponent<Button>();
+            tapButton.targetGraphic = tapButtonBg;
+            var tapButtonLabelRt = CreateUIObject("Label", tapButtonRt);
+            Stretch(tapButtonLabelRt, Vector2.zero, Vector2.zero);
+            AddText(tapButtonLabelRt.gameObject, "Upgrade", 14, InkColor, TextAlignmentOptions.Center);
+
+            var panelController = root.gameObject.AddComponent<UpgradesMenuPanel>();
+            var so = new SerializedObject(panelController);
+            so.FindProperty("tapPowerLabel").objectReferenceValue = tapLabel;
+            so.FindProperty("tapPowerButton").objectReferenceValue = tapButton;
+            so.ApplyModifiedProperties();
+
+            return root.gameObject;
         }
     }
 }

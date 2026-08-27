@@ -14,7 +14,7 @@ The serpent no longer opens in a popup. Instead, activating the Frontier trigger
 
 ## Crew participation
 
-Every currently-recruited crew member (BBW, BBC, and future recruits) visually joins the fight when active — switching from their idle/working loop to a new **attack animation**, appearing to strike the serpent alongside the player's taps. This makes their existing mechanical contribution (crew bonuses already factor into fight damage via `crewSubBonusSum`) visible rather than an invisible stat.
+Every currently-recruited crew member (BBW, BBC, and future recruits) visually joins the fight when active: they walk from their HomeSpot out to the serpent's position (their existing idle frame set doubles as the walk-cycle during transit — it already reads as a walking pose, no separate art needed), switch to their **attack animation** on arrival and hold it for the fight's duration, appearing to strike the serpent alongside the player's taps, then walk the same idle frames back to their HomeSpot once the fight ends and resume idle/working. Each recruit is offset from the serpent's exact position so multiple attackers flank it rather than stack on one point. This makes their existing mechanical contribution (crew bonuses already factor into fight damage via `crewSubBonusSum`) visible rather than an invisible stat.
 
 **New sprite requirement per recruited character**: a 2-3 frame attack loop, same canvas size and reference-image technique already used for idle/working sets (86×140 for BBW and BBC). Suggested prompt pattern (swap in the correct tap-reaction file as Reference image 1):
 

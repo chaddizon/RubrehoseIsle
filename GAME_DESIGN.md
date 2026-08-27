@@ -30,25 +30,43 @@ Tap to salvage → recruit crew (passive generators) → spend currency on upgra
 | 5 | The Hollow | Cave Glimmer | Rare Crystal | Light-management mechanic, The Feline |
 | 6 | The Deep Reef | Sea Glass | — (finale) | Full Serpent Combat tree |
 
-Each biome = 3 coves (e.g. Wreck Beach: Landing Cove → Debris Field → Low Tide Flats), each cove gated by repeated serpent-tier clears before advancing.
+Each biome = 3 coves (e.g. Wreck Beach: Landing Cove → Debris Field → Low Tide Flats), each cove gated by that cove's serpent boss — persistent HP across attempts (never resets except when advancing to a fresh cove), unlimited attempts, gated only by a real-time cooldown between attempts. One defeat is enough to reveal the crossing; see "Pacing" below for why that single fight still takes real days.
 
 ## Serpent tiers
 Hatchling → Shoal-back → Tide-coiled → Bramblefang → Storm-wound → Cave-blind → Abyssal Coil (one per biome, roughly). Cave-blind (The Hollow) uniquely uses a rhythm/timing-based fight rather than visible-target tapping, since it's blind.
 
 ## Core formulas
 ```
-Armor(biome, cove) = round(8 × 2.8^(cove_index) × BiomeMultiplier)
-HP(biome, cove)    = round(50 × 2.5^(cove_index) × BiomeMultiplier)
+Armor(biome, cove) = round(15 × 2.8^(cove_index) × BiomeMultiplier)
+HP(biome, cove)    = round(36000 × 2.5^(cove_index) × BiomeMultiplier)
 BiomeMultiplier: [1, 9.5, 90.25, 857.4, 8145, 77380]  (×9.5 step-jump per biome)
 
 Salvage/Tap Power(level) = (level+1) × (level+2) / 2   [quadratic]
 
-Clears needed(biome, cove) = (cove_index+1) × ClearMult[biome]
-ClearMult: [5, 15, 35, 105, 315, 945]  (×~3 harsher per biome)
+ClearMult (construction cost/reward scaling only, NOT a repeat-clear counter — see
+"Pacing" below): [5, 15, 35, 105, 315, 945]  (×~3 harsher per biome)
 
 Fight Duration = 30 seconds base, extendable via rare late-game upgrade
 Cooldown = 20 minutes between attempts on same cove's serpent (reducible via upgrades)
 ```
+
+## Pacing (Landing Cove, deliberately slow)
+
+The Armor/HP coefficients above (15 / 36000, up from an earlier 8 / 50) are tuned so a
+single defeat of Landing Cove's serpent takes on the order of 50-60 real attempts, not
+one. Combined with the real 20-minute cooldown and unlimited attempts (persistent HP
+across all of them), that's a floor of several real days even for someone hitting every
+cooldown window during all their waking hours, and multiple weeks for a couple-check-ins-
+a-day casual player — both playstyles valid, active just faster. This is intentional, not
+a placeholder: progression across zones needs to stay slow both for art-production pacing
+(new biome art can't be produced as fast as players would otherwise clear zones) and to
+make the game a long-term investment in Obelisk's mold rather than something to blow
+through in an afternoon. These two coefficients are a first-pass estimate, not validated
+against real elapsed-time playtesting — expect to retune them (only them; the per-cove/
+per-biome growth curves are intentionally left alone) once real clear times are observed.
+A crew→tap-power or crew→fight-damage bonus (referenced but not yet implemented — see
+`IN_SCENE_FIGHT_SYSTEM.md`'s "crewSubBonusSum" mention) is planned as part of a separate
+upgrade tree, not this pacing pass.
 
 ## Side-loops (mirror Obelisk's Archaeology/Fishing/Stargazing)
 
@@ -88,7 +106,7 @@ NOT a copy of Obelisk's UI (icon-grid-behind-a-button + Pins system). Full Rubre
 - Disembodied-eyes / heart-glasses motifs as rare-event/critical/jackpot indicators
 - "BE BAD!" lettering style applied to action buttons
 - Checkerboard pattern as a recurring functional UI element
-- **Palette (LOCKED): characters are monochrome, environment/props are colorful.** Characters = BBW, BBC, Lucy, Lucette, The Feline, Tuggy, the hermit crab, and the bottle (counts as a character due to its recurring hand-holding-bottle brand imagery) — all black/white/grayscale. Environment and props = backgrounds, the hut, campfire, driftwood, the flag marker — all full color, matching the established colorful pixel-art style. This creates deliberate visual contrast, keeping the cast as the clear focal point against a vibrant world.
+- **Palette (LOCKED, revised): characters AND backgrounds are monochrome, world-object props stay colorful.** Characters = BBW, BBC, Lucy, Lucette, The Feline, Tuggy, the hermit crab, and the bottle (counts as a character due to its recurring hand-holding-bottle brand imagery) — all black/white/grayscale. Backgrounds (cove scenes, e.g. Landing Cove's) are also monochrome/grayscale now, unifying the backdrop with the cast. Props sitting in the world — the hut, campfire, driftwood, the flag marker — stay full color. This flips the original contrast logic: now it's the colorful, interactive props that pop against a monochrome cast-and-backdrop, rather than a colorful world contrasting a monochrome cast.
 
 ## Animation approach
 Pivoted from vector illustration to pixel art mid-project (see WRECK_BEACH_CHECKLIST.md note). Procedural animation still applies for position-only movement (e.g. Tuggy's idle float/bob), but position must snap to whole-pixel increments each frame to avoid shimmer/blur — fractional/smooth movement breaks pixel art even with Point-filter texture import. For anything involving shape change (flame flicker, cloth flutter, walk cycles), use short hand-drawn frame loops instead of code-driven scaling/skewing, which blurs pixel art. Established frame-count conventions so far: ambient idle effects (campfire, flag flutter) ~3-5 frames; character walk cycles ~3-4 frames. Real rigged animation (Rive or Spine) remains a possible future upgrade but is now a lower priority given the pixel-art direction's own frame-based conventions are working well.

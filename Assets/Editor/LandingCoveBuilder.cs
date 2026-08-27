@@ -25,6 +25,13 @@ namespace Rubrehose.EditorTools
 
         private const float HalfWidth = 2.8125f; // coveScreenWidth/2 (5.625/2) — CoveViewCamera
 
+        // 96x64px each (down from 120x80 — a deliberate scale reduction, the old size read as
+        // too visually dominant), imported at 100px/unit (default) so they render at their true
+        // 0.96x0.64-unit footprint. AddFittedBoxCollider2D refits each piece's tap box to this
+        // smaller footprint automatically on rebuild, but CapColliderToNearestNeighbor's
+        // neighbor-spacing safety cap (driven by DriftwoodAnchors' fixed spacing, not sprite
+        // size) still binds tighter than even this smaller content size, so it — not the
+        // sprite — remains the actual determinant of the final tap box size. See CapColliderToNearestNeighbor.
         private static readonly string[] DriftwoodSpritePaths =
         {
             "Assets/Art/WorldObjects/Driftwood/driftwood1.png",
@@ -94,6 +101,17 @@ namespace Rubrehose.EditorTools
         // footprint — not part of the idle/working replacement, still the original canvas size.
         private const string BBWTapReactionSpritePath = "Assets/Art/Characters/BBW/bbw_tapreaction.png";
 
+        // 86x140px each, imported at 100px/unit (default) so they render at their true
+        // 0.86x1.4-unit footprint — a 2-frame loop (content bounds nearly identical between
+        // the two, confirmed safe to loop cleanly), not 3 like the idle/working sets. Loaded
+        // and filtered to non-null below, same as every other sprite-path array here, so a
+        // still-missing file degrades to an empty array rather than a null entry.
+        private static readonly string[] BBWAttackSpritePaths =
+        {
+            "Assets/Art/Characters/BBW/bbwattacking1.png",
+            "Assets/Art/Characters/BBW/bbwattacking2.png",
+        };
+
         // 86x140px each (properly-proportioned replacement for the original square set,
         // matching BBW's updated canvas), imported at 100px/unit (default) so they render at
         // their true 0.86x1.4-unit footprint. Monochrome — counts as a character under
@@ -116,6 +134,16 @@ namespace Rubrehose.EditorTools
         // footprint — not part of the idle/working replacement, still the original canvas size.
         private const string BBCTapReactionSpritePath = "Assets/Art/Characters/BBC/bbc_tapreaction.png";
 
+        // 86x140px each, imported at 100px/unit (default) so they render at their true
+        // 0.86x1.4-unit footprint — a 3-frame loop, filtered to non-null the same way as
+        // BBWAttackSpritePaths above.
+        private static readonly string[] BBCAttackSpritePaths =
+        {
+            "Assets/Art/Characters/BBC/bbcattacking1.png",
+            "Assets/Art/Characters/BBC/bbcattacking2.png",
+            "Assets/Art/Characters/BBC/bbcattacking3.png",
+        };
+
         // 192x344px, imported at 34.133333 px/unit (Assets/Art/.../landingcove1.png.meta) so it
         // exactly covers the cove's full width (coveScreenWidth) at scale 1, and is a hair
         // taller than the camera's viewport (10.078 vs 2x orthoSize's 10) rather than shorter,
@@ -128,7 +156,10 @@ namespace Rubrehose.EditorTools
 
         // Anchors matched by eye against landingcove1.png's actual terrain (taller dune
         // composition, replacing the prior background of the same 192x344px footprint).
-        private static readonly Vector2 TuggyAnchor = new Vector2(0.18f, 0.85f);
+        // Nudged 2% left (was u=0.18) alongside the 15% size bump below.
+        private static readonly Vector2 TuggyAnchor = new Vector2(0.16f, 0.85f);
+        // Symmetric around u=0.50 (0.42/0.58 straddle it evenly) so the row centers
+        // horizontally as a group.
         private static readonly Vector2[] DriftwoodAnchors =
         {
             new Vector2(0.42f, 0.80f),
@@ -147,18 +178,29 @@ namespace Rubrehose.EditorTools
         // Roaming path isn't implemented yet (BuildRoamingCritter placeholder-parks the critter
         // at Start) — End is kept here so it's not lost once that behavior exists. Shifted right
         // and up from its original placement; End is capped at 0.98 (the raw requested shift
-        // would land past the background's right edge at u=1.0).
-        private static readonly Vector2 CritterStartAnchor = new Vector2(0.80f, 0.76f);
+        // would land past the background's right edge at u=1.0). Start nudged 2% down since
+        // (only Start renders currently); End left as-is.
+        private static readonly Vector2 CritterStartAnchor = new Vector2(0.80f, 0.78f);
         private static readonly Vector2 CritterEndAnchor = new Vector2(0.98f, 0.76f);
 
-        private static readonly Vector2 HutAnchor = new Vector2(0.50f, 0.62f);
-        private static readonly Vector2 CampfireAnchor = new Vector2(0.58f, 0.64f);
-        private static readonly Vector2 BBWHomeSpotAnchor = new Vector2(0.44f, 0.68f);
+        // Nudged 3% up (was v=0.62).
+        private static readonly Vector2 HutAnchor = new Vector2(0.50f, 0.59f);
+        // Centered horizontally on the driftwood row (avg of the three DriftwoodAnchors' u,
+        // which is also Driftwood_2's own u) and dropped down to sit just above their tap
+        // boxes: Driftwood_2 (the row's frontmost piece, directly below at u=0.50) has its
+        // collider capped to 80% of the ~0.49-unit gap to its neighbors (CapColliderToNearestNeighbor),
+        // so its box top edge lands around world y=-3.03; campfire's own 64x56 (0.64x0.56-unit)
+        // footprint at v=0.74 (world y=-2.42, nudged up 2% from v=0.76) keeps a clear gap above
+        // that, no collider overlap.
+        private static readonly Vector2 CampfireAnchor = new Vector2(0.50f, 0.74f);
+        // Nudged 2% right (was u=0.44).
+        private static readonly Vector2 BBWHomeSpotAnchor = new Vector2(0.46f, 0.68f);
         // On the hill, above the rest of the Camp cluster at the dune's base — paired with
         // BBCHomeSpotScale below so it still reads as further back/up via forced-perspective
         // depth (flat 2D with depth layering, not true 3D), consistent with the rest of the cove.
-        private static readonly Vector2 BBCHomeSpotAnchor = new Vector2(0.50f, 0.42f);
-        private static readonly Vector2 MiniBossTriggerAnchor = new Vector2(0.90f, 0.48f);
+        // Nudged 5% right (was u=0.50).
+        private static readonly Vector2 BBCHomeSpotAnchor = new Vector2(0.55f, 0.42f);
+        private static readonly Vector2 SerpentAnchor = new Vector2(0.90f, 0.48f);
 
         // Forced-perspective depth cue for BBCHomeSpot's hillside placement: smaller apparent
         // size reads as farther up/back on the hill. CreateWorldSprite's uniformScale param
@@ -171,8 +213,9 @@ namespace Rubrehose.EditorTools
         private const float BBWHomeSpotScale = 0.69f;
 
         // Sized up ~25% off BBC/BBW's shared native footprint — Tuggy is a background/distance
-        // plane, not tied to the forced-perspective hill scaling above.
-        private const float TuggyScale = 1.25f;
+        // plane, not tied to the forced-perspective hill scaling above. Bumped a further 15%
+        // on top of that (1.25 * 1.15) per feedback.
+        private const float TuggyScale = 1.4375f;
 
         private static Vector2 AnchorToWorld(Vector2 anchor) => new Vector2(
             Mathf.Lerp(-BackgroundWidth / 2f, BackgroundWidth / 2f, anchor.x),
@@ -214,7 +257,7 @@ namespace Rubrehose.EditorTools
                 AnchorToWorld(HutAnchor),
                 AnchorToWorld(BBWHomeSpotAnchor),
                 AnchorToWorld(BBCHomeSpotAnchor),
-                AnchorToWorld(MiniBossTriggerAnchor),
+                AnchorToWorld(SerpentAnchor),
             };
 
             BuildBackground(root.transform);
@@ -425,11 +468,15 @@ namespace Rubrehose.EditorTools
             var bbwWorkingFramesProp = bbwAnimatorSo.FindProperty("workingFrames");
             bbwWorkingFramesProp.arraySize = bbwWorkingFrames.Length;
             for (int f = 0; f < bbwWorkingFrames.Length; f++) bbwWorkingFramesProp.GetArrayElementAtIndex(f).objectReferenceValue = bbwWorkingFrames[f];
+            var bbwAttackFrames = System.Array.FindAll(
+                System.Array.ConvertAll(BBWAttackSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>), s => s != null);
+            var bbwAttackFramesProp = bbwAnimatorSo.FindProperty("attackFrames");
+            bbwAttackFramesProp.arraySize = bbwAttackFrames.Length;
+            for (int f = 0; f < bbwAttackFrames.Length; f++) bbwAttackFramesProp.GetArrayElementAtIndex(f).objectReferenceValue = bbwAttackFrames[f];
             bbwAnimatorSo.FindProperty("tapReactionFrame").objectReferenceValue = bbwTapReactionSprite;
-            // Default idle rate (0.6fps, CrewHomeSpotAnimator's shared default) read as erratic
-            // for BBW's specific idle frames — eased down a bit just for this instance rather
-            // than lowering the shared default and affecting BBC too.
-            bbwAnimatorSo.FindProperty("idleFramesPerSecond").floatValue = 0.4f;
+            // Flanks the serpent from its left so BBW/BBC don't walk to and stack on the exact
+            // same point when both are recruited and fighting together.
+            bbwAnimatorSo.FindProperty("attackOffset").vector2Value = new Vector2(-0.4f, 0f);
             bbwAnimatorSo.ApplyModifiedProperties();
 
             Vector2 bbcPos = AnchorToWorld(BBCHomeSpotAnchor);
@@ -457,32 +504,49 @@ namespace Rubrehose.EditorTools
             var bbcWorkingFramesProp = bbcAnimatorSo.FindProperty("workingFrames");
             bbcWorkingFramesProp.arraySize = bbcWorkingFrames.Length;
             for (int f = 0; f < bbcWorkingFrames.Length; f++) bbcWorkingFramesProp.GetArrayElementAtIndex(f).objectReferenceValue = bbcWorkingFrames[f];
+            var bbcAttackFrames = System.Array.FindAll(
+                System.Array.ConvertAll(BBCAttackSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>), s => s != null);
+            var bbcAttackFramesProp = bbcAnimatorSo.FindProperty("attackFrames");
+            bbcAttackFramesProp.arraySize = bbcAttackFrames.Length;
+            for (int f = 0; f < bbcAttackFrames.Length; f++) bbcAttackFramesProp.GetArrayElementAtIndex(f).objectReferenceValue = bbcAttackFrames[f];
             bbcAnimatorSo.FindProperty("tapReactionFrame").objectReferenceValue = bbcTapReactionSprite;
+            // Flanks the serpent from its right — see the matching BBW comment above.
+            bbcAnimatorSo.FindProperty("attackOffset").vector2Value = new Vector2(0.4f, 0f);
             bbcAnimatorSo.ApplyModifiedProperties();
         }
 
+        // Builds the serpent itself as a persistent world object at the Frontier trigger spot
+        // (IN_SCENE_FIGHT_SYSTEM.md "activating the Frontier trigger causes the serpent to
+        // appear/activate directly at that position") — FightController and SerpentVisual both
+        // live on it directly rather than on a separate screen-space modal. Its overlay UI
+        // (HP bar/timer) is built separately by FightOverlayBuilder and wired into this same
+        // FightController; see the order note in UNITY_SETUP.md.
         private static void BuildFrontierCluster(Transform parent, List<Vector2> clickablePositions)
         {
             var cluster = new GameObject("Frontier");
             Undo.RegisterCreatedObjectUndo(cluster, "Build Landing Cove");
             cluster.transform.SetParent(parent, false);
 
-            Vector2 triggerPos = AnchorToWorld(MiniBossTriggerAnchor);
-            var trigger = CreateWorldSprite("MiniBossTrigger", cluster.transform, triggerPos, 1f, SquareSprite(), PurpleAccent, 2);
-            var triggerCollider = AddFittedBoxCollider2D(trigger);
-            CapColliderToNearestNeighbor(triggerCollider, triggerPos, clickablePositions, trigger.transform.localScale.x);
-            var miniBoss = trigger.AddComponent<MiniBossTrigger>();
+            Vector2 serpentPos = AnchorToWorld(SerpentAnchor);
+            // White/no tint: the serpent is a character under GAME_DESIGN.md's locked art
+            // direction (monochrome cast), same rule already applied to BBW/BBC/the bottle.
+            var serpent = CreateWorldSprite("Serpent", cluster.transform, serpentPos, 1f, SquareSprite(), Color.white, 2);
+            var serpentCollider = AddFittedBoxCollider2D(serpent);
+            CapColliderToNearestNeighbor(serpentCollider, serpentPos, clickablePositions, serpent.transform.localScale.x);
 
-            var fightController = Object.FindFirstObjectByType<FightController>();
-            if (fightController == null)
-            {
-                Debug.LogWarning("LandingCoveBuilder: no FightController found in the scene — run " +
-                                  "Rubrehose > Build Persistent UI > Fight Modal, then re-run this command, " +
-                                  "or assign MiniBossTrigger.fightController manually.");
-            }
-            var miniBossSo = new SerializedObject(miniBoss);
-            miniBossSo.FindProperty("fightController").objectReferenceValue = fightController;
-            miniBossSo.ApplyModifiedProperties();
+            var serpentVisual = serpent.AddComponent<SerpentVisual>();
+            var serpentVisualSo = new SerializedObject(serpentVisual);
+            serpentVisualSo.FindProperty("spriteRenderer").objectReferenceValue = serpent.GetComponent<SpriteRenderer>();
+            serpentVisualSo.ApplyModifiedProperties();
+
+            var fightController = serpent.AddComponent<FightController>();
+            var fightControllerSo = new SerializedObject(fightController);
+            fightControllerSo.FindProperty("serpentVisual").objectReferenceValue = serpentVisual;
+            fightControllerSo.ApplyModifiedProperties();
+
+            Debug.Log("LandingCoveBuilder: built 'Serpent' with FightController — run " +
+                       "Rubrehose > Build Persistent UI > Fight Overlay (before or after this command) " +
+                       "to wire its HP bar/timer overlay.");
         }
 
         private static void BuildRoamingCritter(Transform parent, List<Vector2> clickablePositions)
