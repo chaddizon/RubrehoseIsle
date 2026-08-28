@@ -59,11 +59,31 @@ Currently the game launches directly into Landing Cove with zero introduction �
 
 **Design pattern, matching Obelisk's real approach**: Obelisk does not use one large upfront tutorial. (cite index="10-1">Features unlock progressively tied to specific levels, each presumably announced as it happens.</cite> Note: no verbatim record of Obelisk's actual popup text/wording exists publicly — this is a faithful mechanical match to their pattern, not a literal copy.
 
-**Our implementation:**
-- A short, simple intro sequence on first launch only — a few lightweight popups introducing the absolute basics (tap to collect driftwood, recruit crew, the goal of defeating the mini-boss) before the player is set loose
-- After that, **no more upfront tutorial** — instead, a short contextual popup fires the moment each new mechanic actually becomes available: first cove-4 serpent encounter explains the endless-fight concept, unlocking Tide Pools explains Tidepooling right there at that cove, unlocking Foraging explains itself at that cove, Artifacts explained on first Compass Shard earned, etc.
-- Popups should be dismissible with a single tap, non-blocking beyond that, and should never re-trigger once dismissed (track "seen" state per popup, likely a bool array or set in `PlayerState`/`GameManager`)
-- Visual treatment: match the established checkerboard/comic-panel aesthetic already used for the menu drawer, not a generic system dialog box
+**Mechanical rules for every popup below:**
+- Single tap to dismiss, non-blocking beyond that
+- Fires exactly once per popup, ever — track "seen" state per popup id (bool array/set in PlayerState or GameManager)
+- Visual treatment: placeholder now, should match the checkerboard/comic-panel aesthetic once real art exists
+- Each popup should visually point at / highlight the specific object or UI element it's introducing (arrow, glow, or similar — exact treatment is an implementation detail, but "explains something off-screen with no visual anchor" should be avoided)
+
+**Full ordered sequence for Landing Cove:**
+
+| # | Trigger | Introduces | Placeholder text |
+|---|---|---|---|
+| 1 | Game first launches, before any input | Island intro | "Shipwrecked! Tuggy dropped your crew here — time to rebuild, one piece at a time." |
+| 2 | Immediately after #1 (same beat, or on first look at Tuggy) | Tuggy (light touch only — NOT prestige yet) | "That's Tuggy, your ship. He'll matter more once you've built this place up." |
+| 3 | On first game-view, pointing at driftwood | Core tap loop | "Tap the driftwood to collect it. This is how you'll gather most of what you need." |
+| 4 | First time Driftwood ≥ crew recruit cost (25) | Directs to Menu for first recruit — CRITICAL, since world-tap doesn't work for an unrecruited crew member | "You can afford to recruit! Open the Menu (top-right) and check Crew — recruiting only works from there the first time." |
+| 5 | Immediately on first-ever recruit (level 0→1, any crew member) | What recruiting does | "[Name] joined the crew! They'll now work automatically, even when you're not tapping." (This can be the same beat as the existing "joined the crew" Toast, just extended to fire this longer explanation only the very first time.) |
+| 6 | On recruiting the second crew member (BBC, if BBW was first) | BBW+BBC synergy | "BBW and BBC are thick as thieves — having them both working nearby gives a bonus." |
+| 7 | First time the roaming hermit crab appears on screen | Hermit crab | "Quick, tap the crab before it scurries off! Miss it and it goes to your Banked Critters instead — nothing's ever truly lost." |
+| 8 | First time the Salvage Crate visibly fills partway (or first time it's full) | Salvage Crate meter | "This fills up on its own over time. Tap it once it's full for a bonus." |
+| 9 | First time the bottle-cast flag point is visible/reachable | Message in a Bottle | "Cast a bottle out to sea. Check back later — you never know what'll wash back up." |
+| 10 | First time the mini-boss trigger is visible/reachable | The serpent encounter | "A serpent guards the way forward. You can try anytime, but you'll need to grow stronger to actually land a hit." |
+| 11 | First time a fight actually starts (tapping the serpent while strong enough to matter, or first tap regardless) | Fight mechanics | "Tap the serpent to attack! Damage carries over between attempts — you don't have to win in one go. Your crew will join in too." |
+| 12 | Immediately on first mini-boss defeat | Construction reveal | "Defeated! You've discovered what's needed to build onward — gather the materials and tap Build when ready." |
+| 13 | Immediately on unlocking cove 2 (Tide Pools) | Fast-travel ribbon | "You can now scroll to Tide Pools! Tap the handle in the bottom-left anytime to jump straight there." |
+
+**Beyond Landing Cove**: each subsequent cove's newly-unlocked mechanic (Tidepooling at cove 2, Foraging at cove 3, Artifacts at cove 4) gets its own single contextual popup the moment that cove is reached, same pattern — not written out here since those systems aren't built yet, but Claude Code should follow the same trigger/dismiss/one-time rules established above when that time comes.
 
 ## What did NOT change
 
