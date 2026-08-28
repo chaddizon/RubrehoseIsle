@@ -15,11 +15,21 @@ This is a major structural change agreed on 2026-08-27, replacing the "6 biomes 
 | # | Cove | Unlocks | Boss behavior |
 |---|---|---|---|
 | 1 | Landing Cove (built) | Tap/crew/combat basics, Message in a Bottle, Tuggy/Prestige | One-time defeat gate (existing mini-boss model, currently being retuned for fast early pacing) |
-| 2 | Tide Pools | Tidepooling | One-time defeat gate |
-| 3 | Foraging Grounds *(working name, open to change)* | Foraging | One-time defeat gate |
-| 4 | *(final cove, unnamed — needs a name)* | Artifacts | **Permanent, endlessly-scaling fight — this is our Obelisk** |
+| 2 | Tide Pools (built) | Tidepooling | One-time defeat gate |
+| 3 | The Grove | Foraging | One-time defeat gate |
+| 4 | The Deep Reef | Artifacts | **Permanent, endlessly-scaling fight — this is our Obelisk** |
 
 Coves 1-3 keep the exact mini-boss model already built (persistent HP, 30s duration, 20-min cooldown, unlimited attempts, single defeat unlocks the next cove). Only cove 4's serpent is different in kind, not just degree.
+
+**The Deep Reef's visual identity**: deliberately water-dominant, distinct from the other three sandy-island coves — much less exposed land, jagged reef rocks breaking the surface instead of a beach, deep dark turquoise water filling most of the frame, optionally the silhouette of something large and coiled just beneath the surface as a background tease. This is the one cove that should look and feel like the permanent endgame, not another stop along the way.
+
+## Serpent tier flavor names (cosmetic labels on top of `serpentLevel`)
+
+The endless Deep Reef serpent shouldn't just show a bare level number — reuse the tier names originally designed for the old 6-biome plan as flavor labels at specific `serpentLevel` milestones, giving the grind a sense of earned narrative escalation:
+
+Hatchling → Shoal-back → Tide-coiled → Bramblefang → Storm-wound → Cave-blind → Abyssal Coil
+
+Exact level thresholds for each name are not yet set — needs a milestone table once real pacing data exists (see the Balance-tab simulation work referenced elsewhere in this project). For now, treat this as an ordered list to map onto level ranges later, not a final schedule.
 
 ## Cove 4's serpent — the permanent "Obelisk" fight
 
