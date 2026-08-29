@@ -22,29 +22,43 @@ All in the `RubrehoseIsle` repo root unless noted:
 
 ## The 4-cove structure (current, per CORE_PROGRESSION_RESTRUCTURE.md)
 
-**The core framing to hold onto: coves 1-3 are, functionally, the tutorial.** Each is a
-one-time mini-boss gate — defeat it and you're immediately in the next cove, no payment/
-construction step (that existed briefly and was removed 2026-08-27, see below). Once you
-clear cove 3, you land in cove 4: the *actual* endgame loop this whole game is built around,
-a permanent, endlessly-scaling serpent fight that mirrors Idle Obelisk Miner's real Obelisk
-fight 1:1. Coves 1-3 exist to onboard the player (recruiting, tapping, basic combat) into
-that one endless grind — not as separate destinations in their own right.
+**The core framing to hold onto (corrected 2026-08-29 — an earlier version of this doc got
+this wrong): the tutorial is unlocking the entirety of Wreck Beach, all 4 coves — not just
+coves 1-3.** Cove 4 still unlocks a feature on arrival (Artifacts/"artificing" — exact
+name/shape TBD), so reaching it is just as much an onboarding beat as coves 1-3. Each cove is
+a one-time mini-boss gate — defeat it and you're immediately in the next cove, no payment/
+construction step (that existed briefly and was removed 2026-08-27, see below).
+
+**"Real" gameplay begins once the whole island is unlocked and freely scrollable across all
+4 coves.** From there the loop is: manage resources across all 4 coves at once, upgrade
+everything with an upgrade path — characters, Cove Buildings (deliberately meant to be slow
+and expensive, a major long-term sink, not a quick side-goal), and whatever else gets an
+upgrade tree — while continuously fighting the permanent endgame boss that lives in cove 4
+(rightmost cove): a serpent for now, possibly other monster types at higher levels later
+(not decided). That fight mirrors Idle Obelisk Miner's real Obelisk fight 1:1 and never
+truly ends.
+
+**Open question, not decided — don't build around either answer:** whether the cove-4-unlock
+feature (Artifacts) stays on cove 4, or moves to cove 3 instead, freeing cove 4 to be purely
+the endgame-boss screen with no other mechanic tied to arriving there. Chad is still thinking
+this through.
 
 | # | Cove | Unlocks | Boss |
 |---|---|---|---|
 | 1 | Landing Cove (built) | Basics, Message in a Bottle, Tuggy/Prestige | One-time defeat |
 | 2 | Tide Pools (scaffolded, placeholder objects, not yet visually tuned) | Tidepooling | One-time defeat |
-| 3 | The Grove (locked name; unbuilt) | Foraging | One-time defeat |
-| 4 | The Deep Reef (locked name; unbuilt) | Artifacts | **Permanent, endlessly-scaling — this is our "Obelisk," the real core loop** |
+| 3 | The Grove (locked name; unbuilt) | Foraging (and maybe Artifacts, see open question above) | One-time defeat |
+| 4 | The Deep Reef (locked name; unbuilt) | Artifacts (placement not final, see above) | **Permanent, endlessly-scaling — this is our "Obelisk," the real endgame boss** |
 
 A separate, fully independent system — **Cove Buildings** — was added 2026-08-27: one
 building per cove (only Landing Cove's Hut is designed so far), 3 paid stages each, granting
 real tap-power bonuses. Zero presence in the world until Stage 1 is paid via a new Menu →
 Buildings panel. This has NO bearing on cove-unlock progression — it's a parallel wealth
-sink, same role as Obelisk's Construct/Monument system. **Its bonuses stack on top of the
-existing tap/serpent curve and the base curve has not yet been rebalanced to compensate** —
-flagged in `CORE_PROGRESSION_RESTRUCTURE.md`'s "Rebalancing requirement" section as required
-follow-up, not done.
+sink, same role as Obelisk's Construct/Monument system, and per Chad's framing above this is
+exactly the kind of system the *post-tutorial* real game loop revolves around. **Its bonuses
+stack on top of the existing tap/serpent curve and the base curve has not yet been rebalanced
+to compensate** — flagged in `CORE_PROGRESSION_RESTRUCTURE.md`'s "Rebalancing requirement"
+section as required follow-up, not done.
 
 ## Art direction — the important part not fully captured elsewhere
 

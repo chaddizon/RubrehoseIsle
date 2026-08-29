@@ -18,18 +18,33 @@ yet visually tuned in Play mode; coves 2-3 don't exist in Unity yet.
 
 ## The current progression shape (read this before touching cove/fight code)
 
-**Coves 1-3 are, functionally, the tutorial.** Each is a one-time mini-boss gate with no
-payment step anymore — defeating a cove's mini-boss immediately advances `coveIndex` to the
-next cove (camera auto-pans to reveal it, a popup announces it). There is no "gather
-materials, then build a crossing" step; that system existed briefly and was **removed
-entirely** on 2026-08-27 (see below). Once you clear cove 3, you land in **cove 4 (the
-endless cove)** — the *actual* core loop this game is built around: a permanent,
-endlessly-scaling serpent fight that mirrors Idle Obelisk Miner's real Obelisk-fight formula
-1:1 (`GameFormulas.SerpentArmorForLevel`, cited armor formula including the ×9.5 jump past
-level 60). Beating it doesn't end anything — it respawns tougher and `serpentLevel` climbs
-forever. Everything before that point (recruiting BBW/BBC, tap upgrades, the 3 finite coves)
-is onboarding-flavored ramp-up to this one endless grind, matching how Obelisk itself is one
-mine with one continuously-scaling boss, not a sequence of discrete zones.
+**Correction (2026-08-29, from Chad directly — supersedes a framing mistake made earlier the
+same day): the "tutorial" is unlocking the entirety of Wreck Beach, all 4 coves — not just
+coves 1-3.** Cove 4 still unlocks a feature on arrival (Artifacts, per the doc's cove table —
+exact name/shape TBD), which makes reaching it just as much an "unlock a mechanic" beat as
+coves 1-3, not yet the start of "real" endgame play. Each of the 4 coves is a one-time
+mini-boss gate with no payment step anymore — defeating a cove's mini-boss immediately
+advances `coveIndex` to the next cove (camera auto-pans to reveal it, a popup announces it).
+There is no "gather materials, then build a crossing" step; that system existed briefly and
+was **removed entirely** on 2026-08-27 (see below).
+
+**"Real" gameplay begins only once the whole island is unlocked and freely scrollable across
+all 4 coves.** At that point the loop becomes: manage resources across all 4 coves
+simultaneously, upgrade everything with an upgrade path (characters, Cove Buildings — Chad
+wants these deliberately slow/expensive, a major long-term time-and-resource sink, not a
+quick side-goal — and whatever else ends up with an upgrade tree), while continuously
+attacking the permanent endgame boss that lives in cove 4 (rightmost cove) — a serpent for
+now, possibly other monster types at higher levels later, not yet decided. That endless fight
+mirrors Idle Obelisk Miner's real Obelisk-fight formula 1:1
+(`GameFormulas.SerpentArmorForLevel`, cited armor formula including the ×9.5 jump past level
+60) and never truly ends — beating it respawns a tougher version and `serpentLevel` climbs
+forever.
+
+**Open design question, not yet decided — don't build around either answer yet:** whether
+the cove-4-unlock feature (Artifacts/"artificing", currently table-mapped to cove 4) should
+stay there, or move to cove 3 instead (freeing cove 4 to be purely dedicated to the endgame
+boss fight, with no other mechanic-unlock attached to arriving there). Chad is still thinking
+this through — ask before assuming either shape if it becomes load-bearing for other work.
 
 **Cove Buildings** are a second, fully separate system layered on top — NOT part of cove
 progression at all. One building per cove (currently only Landing Cove's Hut is designed),
