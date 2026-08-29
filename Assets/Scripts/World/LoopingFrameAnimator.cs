@@ -7,7 +7,8 @@ namespace Rubrehose.World
     // flicker, flag-pole flutter, etc.) — purely cosmetic, no gameplay state, no collider
     // involvement. Assumes all frames share near-identical content bounds (confirmed per-use
     // by whoever wires it up); if a future frame set doesn't, it'll need its own per-frame
-    // offset handling the way HutConstructionState has for its half-built stage.
+    // offset handling per frame, same idea as any other multi-sprite state swap in this
+    // codebase (e.g. HutConstructionState's old half-built-stage offset).
     public class LoopingFrameAnimator : MonoBehaviour
     {
         [SerializeField] private SpriteRenderer spriteRenderer;

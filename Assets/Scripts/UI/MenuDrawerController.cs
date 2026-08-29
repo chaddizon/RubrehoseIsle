@@ -6,11 +6,13 @@ using Rubrehose.Core;
 namespace Rubrehose.UI
 {
     // Comic-panel-style drawer (HUD_AND_LANDING_COVE_LAYOUT.md §C), slides in from the
-    // right edge. Crew and Upgrades rows open real content panels (core-loop critical);
-    // Captain's Log/Milestones/Settings/Artifacts still just log until those systems
-    // exist. All click wiring happens here in OnEnable via serialized references, rather
-    // than the builder tool calling AddListener at edit time — edit-time listeners are
-    // non-persistent and are silently lost on the next domain reload / Play session.
+    // right edge. Crew, Upgrades, and Buildings rows open real content panels; Captain's
+    // Log/Milestones/Settings/Artifacts still just log until those systems exist. Buildings
+    // (CORE_PROGRESSION_RESTRUCTURE.md "Cove Buildings") is the only way to pay a building's
+    // first stage — nothing exists in-world to tap before then (CoveBuildingVisual). All
+    // click wiring happens here in OnEnable via serialized references, rather than the
+    // builder tool calling AddListener at edit time — edit-time listeners are non-persistent
+    // and are silently lost on the next domain reload / Play session.
     public class MenuDrawerController : MonoBehaviour
     {
         [SerializeField] private RectTransform panel;
@@ -23,6 +25,7 @@ namespace Rubrehose.UI
         [SerializeField] private Button closeButton;
         [SerializeField] private Button crewRowButton;
         [SerializeField] private Button upgradesRowButton;
+        [SerializeField] private Button buildingsRowButton;
         [SerializeField] private Button captainsLogRowButton;
         [SerializeField] private Button milestonesRowButton;
         [SerializeField] private Button settingsRowButton;
@@ -33,9 +36,10 @@ namespace Rubrehose.UI
         [SerializeField] private GameObject rowList;
         [SerializeField] private GameObject crewPanel;
         [SerializeField] private GameObject upgradesPanel;
+        [SerializeField] private GameObject buildingsPanel;
 
         [Header("Conditionally-visible rows")]
-        [SerializeField] private GameObject captainsLogRow; // shown once GameManager.State.constructionComplete
+        [SerializeField] private GameObject captainsLogRow; // shown once GameManager.State.reachedEndlessCove
         [SerializeField] private GameObject artifactsRow;
 
         [Tooltip("Placeholder — wire to real prestige-count state once Prestige exists. Artifacts row " +
@@ -56,6 +60,7 @@ namespace Rubrehose.UI
             contentBackButton.onClick.AddListener(ShowRowList);
             crewRowButton.onClick.AddListener(() => OnEntryTapped("Crew"));
             upgradesRowButton.onClick.AddListener(() => OnEntryTapped("Upgrades"));
+            buildingsRowButton.onClick.AddListener(() => OnEntryTapped("Buildings"));
             captainsLogRowButton.onClick.AddListener(() => OnEntryTapped("Captain's Log"));
             milestonesRowButton.onClick.AddListener(() => OnEntryTapped("Milestones"));
             settingsRowButton.onClick.AddListener(() => OnEntryTapped("Settings"));
@@ -86,7 +91,7 @@ namespace Rubrehose.UI
 
         private void RefreshConditionalRows()
         {
-            if (captainsLogRow != null) captainsLogRow.SetActive(GameManager.Instance.State.constructionComplete);
+            if (captainsLogRow != null) captainsLogRow.SetActive(GameManager.Instance.State.reachedEndlessCove);
             if (artifactsRow != null) artifactsRow.SetActive(artifactsUnlocked);
         }
 
@@ -132,6 +137,7 @@ namespace Rubrehose.UI
             {
                 "Crew" => crewPanel,
                 "Upgrades" => upgradesPanel,
+                "Buildings" => buildingsPanel,
                 _ => null,
             };
 

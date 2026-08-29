@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Rubrehose.CameraControl;
 using Rubrehose.Combat;
 using Rubrehose.World;
 using static Rubrehose.EditorTools.RubrehoseEditorUtils;
@@ -40,12 +41,13 @@ namespace Rubrehose.EditorTools
         };
 
         // 192x144px each, imported at 100px/unit (default) so they render at their true
-        // 1.92x1.44-unit footprint — a larger, more elaborate replacement for the original
-        // 128x96 set. Content bounds grow naturally across the sequence (stage2 127px tall,
-        // stage3 144px edge-to-edge), so HutConstructionState needs no compensating offset.
-        private const string HutRubbleSpritePath = "Assets/Art/WorldObjects/Hut/stage1hut.png";
-        private const string HutHalfBuiltSpritePath = "Assets/Art/WorldObjects/Hut/stage2hut.png";
-        private const string HutCompleteSpritePath = "Assets/Art/WorldObjects/Hut/stage3hut.png";
+        // 1.92x1.44-unit footprint. Now used as the Hut Cove Building's 3 paid-stage sprites
+        // (CoveBuildingVisual.stageSprites) rather than construction-progress states — same 3
+        // files, reinterpreted (modest -> serious -> grand investment tier instead of
+        // rubble -> half-built -> complete).
+        private const string HutStage1SpritePath = "Assets/Art/WorldObjects/Hut/stage1hut.png";
+        private const string HutStage2SpritePath = "Assets/Art/WorldObjects/Hut/stage2hut.png";
+        private const string HutStage3SpritePath = "Assets/Art/WorldObjects/Hut/stage3hut.png";
 
         // 64x56px each, imported at 100px/unit (default) so they render at their true
         // 0.64x0.56-unit footprint. Content bounds are near-identical across all four frames,
@@ -183,8 +185,8 @@ namespace Rubrehose.EditorTools
         private static readonly Vector2 CritterStartAnchor = new Vector2(0.80f, 0.78f);
         private static readonly Vector2 CritterEndAnchor = new Vector2(0.98f, 0.76f);
 
-        // Nudged 3% up (was v=0.62).
-        private static readonly Vector2 HutAnchor = new Vector2(0.50f, 0.59f);
+        // Nudged down 3% and right 2% (was u=0.50/v=0.54; before that v=0.59, before that v=0.62).
+        private static readonly Vector2 HutAnchor = new Vector2(0.52f, 0.57f);
         // Centered horizontally on the driftwood row (avg of the three DriftwoodAnchors' u,
         // which is also Driftwood_2's own u) and dropped down to sit just above their tap
         // boxes: Driftwood_2 (the row's frontmost piece, directly below at u=0.50) has its
@@ -307,7 +309,33 @@ namespace Rubrehose.EditorTools
             // decorative, never included in clickablePositions.
             var tuggy = CreateWorldSprite("Tuggy", cluster.transform, AnchorToWorld(TuggyAnchor), TuggyScale,
                 AssetDatabase.LoadAssetAtPath<Sprite>(TuggySpritePath), Color.white, 0, showDebugLabel: false);
-            tuggy.AddComponent<PixelSnappedBob>();
+            var idleBob = tuggy.AddComponent<PixelSnappedBob>();
+
+            // TuggyTravelController (CORE_PROGRESSION_RESTRUCTURE.md "Tuggy's travel
+            // animation") — used to be a manual post-build Inspector step (UNITY_SETUP.md §7)
+            // that a Build Landing Cove rebuild would silently wipe out, since rebuilding
+            // deletes and recreates this whole tree. Wired here instead so it can never be
+            // forgotten. Its OnEnable immediately snaps Tuggy to restingViewport (screen-
+            // relative bottom-left, matching the doc's "resting position at bottom-left") the
+            // moment it's added, same as it would after a manual Add Component — TuggyAnchor
+            // above only matters as Tuggy's position before that first snap. Cruise Frames is
+            // deliberately left unassigned: no real cruising sprites exist yet, so it plays a
+            // plain position tween with no frame-swap on top (TuggyTravelController.cs's own
+            // "placeholder-safe" comment).
+            var travel = tuggy.AddComponent<TuggyTravelController>();
+            var coveCamera = Object.FindFirstObjectByType<CoveViewCamera>();
+            var travelSo = new SerializedObject(travel);
+            travelSo.FindProperty("coveCamera").objectReferenceValue = coveCamera;
+            travelSo.FindProperty("spriteRenderer").objectReferenceValue = tuggy.GetComponent<SpriteRenderer>();
+            travelSo.FindProperty("idleBob").objectReferenceValue = idleBob;
+            travelSo.ApplyModifiedProperties();
+
+            if (coveCamera == null)
+            {
+                Debug.LogWarning("LandingCoveBuilder: no CoveViewCamera found in the scene (expected on Main " +
+                                  "Camera) — TuggyTravelController's cove-settle direction logic won't fire " +
+                                  "until one exists; re-run this command once it does to rewire it.");
+            }
         }
 
         private static void BuildShorelineCluster(Transform parent, List<Vector2> clickablePositions)
@@ -399,40 +427,42 @@ namespace Rubrehose.EditorTools
             Undo.RegisterCreatedObjectUndo(cluster, "Build Landing Cove");
             cluster.transform.SetParent(parent, false);
 
-            // Root (collider + HutConstructionState + ConstructionGate, position fixed) wraps
-            // an animated "Visual" child (sprite only) — same split as DriftwoodPiece, so
-            // HutConstructionState's halfBuilt offset only ever nudges the visual, never the
-            // hitbox, and the collider fits against the currently-real hut art instead of a
-            // placeholder.
+            // The Hut is now a Cove Building (CORE_PROGRESSION_RESTRUCTURE.md "Cove
+            // Buildings"), not a construction gate — real, tappable-once-visible, but with
+            // ZERO presence (no sprite, no collider) until its Stage 1 is actually paid for
+            // via Menu -> Buildings, per the doc's strict "the island should look genuinely
+            // bare on arrival" rule. Same hidden-until-earned mechanism CrewHomeSpotAnimator
+            // already uses for BBW/BBC (CoveBuildingVisual toggles SpriteRenderer/Collider2D
+            // .enabled, not a separate approach), single GameObject (no separate Visual child
+            // needed — nothing here shifts position between stages the way the old
+            // half-built offset did).
+            //
+            // Reuses the same 3 hut sprites as before — they read just as well as Stage
+            // 1/2/3 investment tiers (modest -> serious -> grand) as they did as construction
+            // progress (rubble -> half-built -> complete).
             Vector2 hutPos = AnchorToWorld(HutAnchor);
-            var hut = new GameObject("Hut");
-            Undo.RegisterCreatedObjectUndo(hut, "Build Landing Cove");
-            hut.transform.SetParent(cluster.transform, false);
-            hut.transform.localPosition = new Vector3(hutPos.x, hutPos.y, 0f);
-
-            var hutVisual = new GameObject("Visual");
-            Undo.RegisterCreatedObjectUndo(hutVisual, "Build Landing Cove");
-            hutVisual.transform.SetParent(hut.transform, false);
-            var hutRenderer = hutVisual.AddComponent<SpriteRenderer>();
-            hutRenderer.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(HutRubbleSpritePath); // starting state
-            hutRenderer.color = Color.white;
-            hutRenderer.sortingOrder = 0;
-
-            var hutState = hut.AddComponent<HutConstructionState>();
-            var hutSo = new SerializedObject(hutState);
-            hutSo.FindProperty("spriteRenderer").objectReferenceValue = hutRenderer;
-            hutSo.FindProperty("rubbleSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutRubbleSpritePath);
-            hutSo.FindProperty("halfBuiltSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutHalfBuiltSpritePath);
-            hutSo.FindProperty("completeSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutCompleteSpritePath);
-            hutSo.ApplyModifiedProperties();
+            var hut = CreateWorldSprite("Hut", cluster.transform, hutPos, 1f,
+                AssetDatabase.LoadAssetAtPath<Sprite>(HutStage1SpritePath), Color.white, 0, showDebugLabel: false);
+            var hutRenderer = hut.GetComponent<SpriteRenderer>();
+            // Mirrored to face left instead of the art's default right-facing orientation —
+            // flipX rather than a negative localScale, same reasoning as BBC's flipX below:
+            // CoveBuildingVisual only ever reassigns .sprite (never touches flip state), so
+            // this sticks across every stage swap.
+            hutRenderer.flipX = true;
 
             var hutCollider = AddFittedBoxCollider2D(hut, hutRenderer);
             CapColliderToNearestNeighbor(hutCollider, hutPos, clickablePositions, hut.transform.localScale.x);
-            var gate = hut.AddComponent<ConstructionGate>();
-            var gateSo = new SerializedObject(gate);
-            gateSo.FindProperty("coveIndex").intValue = 0; // Landing Cove
-            gateSo.FindProperty("hutState").objectReferenceValue = hutState;
-            gateSo.ApplyModifiedProperties();
+
+            var hutVisual = hut.AddComponent<CoveBuildingVisual>();
+            var hutVisualSo = new SerializedObject(hutVisual);
+            hutVisualSo.FindProperty("buildingId").stringValue = "hut"; // CoveBuildingCatalog.Buildings' "hut" entry
+            hutVisualSo.FindProperty("spriteRenderer").objectReferenceValue = hutRenderer;
+            var hutStagesProp = hutVisualSo.FindProperty("stageSprites");
+            hutStagesProp.arraySize = 3;
+            hutStagesProp.GetArrayElementAtIndex(0).objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutStage1SpritePath);
+            hutStagesProp.GetArrayElementAtIndex(1).objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutStage2SpritePath);
+            hutStagesProp.GetArrayElementAtIndex(2).objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutStage3SpritePath);
+            hutVisualSo.ApplyModifiedProperties();
 
             // No collider: purely decorative, never included in clickablePositions.
             var campfireSprites = System.Array.ConvertAll(CampfireSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>);

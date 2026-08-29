@@ -21,7 +21,10 @@ namespace Rubrehose.World
 
         private Vector3 _restLocalPosition;
 
-        private void Awake()
+        // Captured on every enable, not just Awake — so re-enabling after something else
+        // (e.g. TuggyTravelController) has moved this object to a new base position bobs
+        // around THAT position, not a stale one from whenever this component first woke up.
+        private void OnEnable()
         {
             _restLocalPosition = transform.localPosition;
         }

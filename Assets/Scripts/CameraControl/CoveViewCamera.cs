@@ -3,15 +3,17 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using Rubrehose.Core;
+using Rubrehose.Data;
 
 namespace Rubrehose.CameraControl
 {
     // Static-per-cove camera (CAMERA_AND_UI_SPEC.md "REVISED — single screen per cove,
     // bounded scroll"). Replaces the earlier continuous-strip WorldScrollCamera: no
     // drag-scroll within a cove — everything in a cove is visible at once. A bounded
-    // left/right swipe pages between already-unlocked coves (max 3 per biome), animated
-    // as a smooth pan rather than an instant cut. Also retains PanTo() so the fast-travel
-    // ribbon can jump the camera to a biome, unchanged from before.
+    // left/right swipe pages between already-unlocked coves (now up to all 4 of Wreck
+    // Beach's, CORE_PROGRESSION_RESTRUCTURE.md — not just 3 within a biome), animated as a
+    // smooth pan rather than an instant cut. Also retains PanTo() so the fast-travel ribbon
+    // can jump the camera to a cove, unchanged from before.
     [RequireComponent(typeof(Camera))]
     public class CoveViewCamera : MonoBehaviour
     {
@@ -24,9 +26,12 @@ namespace Rubrehose.CameraControl
         [SerializeField] private float maxSwipeDurationSeconds = 0.6f;
         [SerializeField] private float panDurationSeconds = 0.45f;
 
-        // Fires once a pan finishes settling, per the spec's "Settled" definition —
-        // argument is the biome index occupying the viewport.
-        public event Action<int> OnSettled;
+        // Fires once a pan finishes settling on a DIFFERENT cove than it started from, per the
+        // spec's "Settled" definition — arguments are (previousCoveIndex, newCoveIndex), so
+        // listeners (TuggyTravelController) can derive travel direction without tracking cove
+        // history themselves. Never fires for a same-cove PanTo (e.g. a re-tap of the already-
+        // current fast-travel slot).
+        public event Action<int, int> OnSettled;
 
         private bool _tracking;
         private Vector2 _pointerDownScreenPos;
@@ -39,23 +44,41 @@ namespace Rubrehose.CameraControl
             SetPositionX(0f);
         }
 
+        // Auto-pan-reveal on cove unlock (CORE_PROGRESSION_RESTRUCTURE.md "New unlock moment":
+        // "the instant a cove unlocks, the camera pans across the newly revealed cove... not an
+        // instant cut or silent unlock"). Reuses GoToCove/OnSettled exactly as a swipe would —
+        // this just calls it in response to GameManager's event instead of a finger release.
+        // GameManager.Awake runs first (DefaultExecutionOrder(-1000)), so Instance is safe to
+        // read here.
+        private void OnEnable() => GameManager.Instance.OnCoveUnlocked += HandleCoveUnlocked;
+        private void OnDisable()
+        {
+            if (GameManager.Instance != null) GameManager.Instance.OnCoveUnlocked -= HandleCoveUnlocked;
+        }
+
+        private void HandleCoveUnlocked(int previousCoveIndex, int newCoveIndex) => GoToCove(newCoveIndex);
+
         private void Update() => HandleSwipe();
 
-        // Pages to a specific cove within the current biome, clamped to already-unlocked
+        // Pages to a specific cove among all 4 of Wreck Beach's, clamped to already-unlocked
         // coves (GameManager.State.coveIndex is the frontier reached so far).
         public void GoToCove(int coveIndex)
         {
             coveIndex = Mathf.Clamp(coveIndex, 0, MaxNavigableCoveIndex());
             if (coveIndex == CurrentCoveIndex) return;
+            int previous = CurrentCoveIndex;
             CurrentCoveIndex = coveIndex;
-            PanTo(coveIndex * coveScreenWidth, panDurationSeconds);
+            StopAllCoroutines();
+            StartCoroutine(PanRoutine(coveIndex * coveScreenWidth, panDurationSeconds, previous, coveIndex));
         }
 
-        // Kept for the fast-travel ribbon's biome jump (CAMERA_AND_UI_SPEC.md fast-travel section).
+        // Raw camera pan to an arbitrary world X — doesn't touch CurrentCoveIndex or fire
+        // OnSettled (there's no "new cove" to report), so callers that DO mean "go to this
+        // cove" (the fast-travel ribbon included) should call GoToCove instead.
         public void PanTo(float worldX, float duration)
         {
             StopAllCoroutines();
-            StartCoroutine(PanRoutine(worldX, duration));
+            StartCoroutine(PanRoutine(worldX, duration, CurrentCoveIndex, CurrentCoveIndex));
         }
 
         private void HandleSwipe()
@@ -103,7 +126,7 @@ namespace Rubrehose.CameraControl
         private int MaxNavigableCoveIndex()
         {
             if (GameManager.Instance == null) return 0;
-            return Mathf.Clamp(GameManager.Instance.State.coveIndex, 0, 2);
+            return Mathf.Clamp(GameManager.Instance.State.coveIndex, 0, WreckBeachData.CoveNames.Length - 1);
         }
 
         private void SetPositionX(float x)
@@ -113,7 +136,7 @@ namespace Rubrehose.CameraControl
             transform.position = pos;
         }
 
-        private IEnumerator PanRoutine(float targetX, float duration)
+        private IEnumerator PanRoutine(float targetX, float duration, int previousCoveIndex, int newCoveIndex)
         {
             float startX = transform.position.x;
             float t = 0f;
@@ -125,11 +148,7 @@ namespace Rubrehose.CameraControl
                 yield return null;
             }
             SetPositionX(targetX);
-            OnSettled?.Invoke(SettledBiomeIndex());
+            if (previousCoveIndex != newCoveIndex) OnSettled?.Invoke(previousCoveIndex, newCoveIndex);
         }
-
-        // Phase 1: Wreck Beach is the only biome built, so this always resolves to 0.
-        // Extend once a second biome's terrain/scene actually exists to jump into.
-        private int SettledBiomeIndex() => 0;
     }
 }

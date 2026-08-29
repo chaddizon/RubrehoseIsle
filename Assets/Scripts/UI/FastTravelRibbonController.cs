@@ -10,8 +10,15 @@ namespace Rubrehose.UI
 {
     // Fast-travel handle/ribbon (CAMERA_AND_UI_SPEC.md "Fast-travel ribbon"). Screen-anchored
     // bottom-left, independent of world scroll. Collapsed = small handle showing the
-    // currently-settled biome; expanded = a ribbon of every unlocked biome, current one
+    // currently-settled cove; expanded = a ribbon of every unlocked cove, current one
     // highlighted at its true sequence position, tapping one pans the world camera there.
+    //
+    // Cove-based rather than biome-based (CORE_PROGRESSION_RESTRUCTURE.md: "The fast-travel
+    // ribbon's mechanical design — still valid, just now only ever needs to hold up to 4
+    // slots total instead of scaling toward 18"). Panning goes through CoveViewCamera.GoToCove
+    // rather than a separately-maintained per-slot world-X array, so this stays in sync with
+    // CoveViewCamera's own notion of "current cove" (and therefore with Tuggy's travel
+    // direction detection, which reads the same OnSettled event) automatically.
     public class FastTravelRibbonController : MonoBehaviour
     {
         [Header("Collapsed handle")]
@@ -28,16 +35,12 @@ namespace Rubrehose.UI
 
         [Header("World")]
         [SerializeField] private CoveViewCamera worldCamera;
-        [SerializeField] private float panDurationSeconds = 0.8f;
 
-        [Tooltip("World-space X to pan the camera to for each biome, in BiomeCatalog order. Fill in as each biome's terrain is built.")]
-        [SerializeField] private float[] biomeWorldX = new float[BiomeCatalog.Names.Length];
-
-        [Tooltip("Thumbnail sprite per biome, in BiomeCatalog order.")]
-        [SerializeField] private Sprite[] biomeThumbnails = new Sprite[BiomeCatalog.Names.Length];
+        [Tooltip("Thumbnail sprite per cove, in WreckBeachData.CoveNames order.")]
+        [SerializeField] private Sprite[] coveThumbnails = new Sprite[WreckBeachData.CoveNames.Length];
 
         private readonly List<FastTravelSlotUI> _slots = new List<FastTravelSlotUI>();
-        private int _settledBiomeIndex;
+        private int _settledCoveIndex;
 
         private void OnEnable()
         {
@@ -45,7 +48,7 @@ namespace Rubrehose.UI
             collapsedHandleButton.onClick.AddListener(Expand);
             closeButton.onClick.AddListener(Collapse);
 
-            _settledBiomeIndex = GameManager.Instance.State.biomeUnlocked;
+            _settledCoveIndex = worldCamera.CurrentCoveIndex;
             Collapse();
             RefreshCollapsedHandle();
         }
@@ -55,17 +58,17 @@ namespace Rubrehose.UI
             if (worldCamera != null) worldCamera.OnSettled -= HandleSettled;
         }
 
-        private void HandleSettled(int biomeIndex)
+        private void HandleSettled(int previousCoveIndex, int newCoveIndex)
         {
-            _settledBiomeIndex = biomeIndex;
+            _settledCoveIndex = newCoveIndex;
             RefreshCollapsedHandle();
         }
 
         private void RefreshCollapsedHandle()
         {
-            collapsedLabel.text = BiomeCatalog.Names[_settledBiomeIndex];
-            if (_settledBiomeIndex < biomeThumbnails.Length && biomeThumbnails[_settledBiomeIndex] != null)
-                collapsedThumbnail.sprite = biomeThumbnails[_settledBiomeIndex];
+            collapsedLabel.text = WreckBeachData.CoveNames[_settledCoveIndex];
+            if (_settledCoveIndex < coveThumbnails.Length && coveThumbnails[_settledCoveIndex] != null)
+                collapsedThumbnail.sprite = coveThumbnails[_settledCoveIndex];
         }
 
         public void Expand()
@@ -86,21 +89,20 @@ namespace Rubrehose.UI
             foreach (Transform child in slotContainer) Destroy(child.gameObject);
             _slots.Clear();
 
-            int unlockedCount = Mathf.Clamp(GameManager.Instance.State.biomeUnlocked + 1, 1, BiomeCatalog.Names.Length);
+            int unlockedCount = Mathf.Clamp(GameManager.Instance.State.coveIndex + 1, 1, WreckBeachData.CoveNames.Length);
             for (int i = 0; i < unlockedCount; i++)
             {
                 var slot = Instantiate(slotPrefab, slotContainer);
-                var sprite = i < biomeThumbnails.Length ? biomeThumbnails[i] : null;
-                slot.Bind(i, BiomeCatalog.Names[i], sprite, i == _settledBiomeIndex, FastTravelTo);
+                var sprite = i < coveThumbnails.Length ? coveThumbnails[i] : null;
+                slot.Bind(i, WreckBeachData.CoveNames[i], sprite, i == _settledCoveIndex, FastTravelTo);
                 _slots.Add(slot);
             }
         }
 
-        private void FastTravelTo(int biomeIndex)
+        private void FastTravelTo(int coveIndex)
         {
-            if (biomeIndex < 0 || biomeIndex >= biomeWorldX.Length) return;
             Collapse();
-            worldCamera.PanTo(biomeWorldX[biomeIndex], panDurationSeconds);
+            worldCamera.GoToCove(coveIndex);
         }
     }
 }

@@ -11,7 +11,7 @@ namespace Rubrehose.Core
     // Forced to initialize before every other script: Unity does NOT guarantee this
     // object's Awake() (which sets Instance) runs before another GameObject's OnEnable()
     // — that ordering depends on scene hierarchy position, not load/dependency order.
-    // Several OnEnable() methods (ConstructionGate, MenuDrawerController,
+    // Several OnEnable() methods (CoveBuildingVisual, MenuDrawerController,
     // PersistentHUDController) read GameManager.Instance and NullReferenceException
     // without this.
     [DefaultExecutionOrder(-1000)]
@@ -23,6 +23,18 @@ namespace Rubrehose.Core
         public double LastOfflineEarnings { get; private set; }
 
         public event Action OnStateChanged;
+
+        // Fires the instant a cove's mini-boss defeat unlocks the next cove (previousCoveIndex,
+        // newCoveIndex) — CoveViewCamera subscribes to auto-pan-reveal the new cove, and
+        // OnboardingController subscribes to fire popup #12 (CORE_PROGRESSION_RESTRUCTURE.md
+        // "New unlock moment" / the onboarding table's row 12). Never fires for the endless
+        // cove's serpent (RegisterSerpentLevelUp doesn't advance coveIndex further, nothing to
+        // unlock past it).
+        public event Action<int, int> OnCoveUnlocked;
+
+        // Fires once a Cove Building stage is actually paid for (id, new stage 1-3) —
+        // OnboardingController subscribes to fire popup #14.
+        public event Action<string, int> OnBuildingStageCompleted;
 
         [SerializeField] private float passiveTickInterval = 0.5f;
         private float _tickTimer;
@@ -114,7 +126,12 @@ namespace Rubrehose.Core
 
         // --- Tap / driftwood -------------------------------------------------
 
-        public double TapPower => GameFormulas.SalvagePower(State.tapLevel);
+        // Building bonus folds in multiplicatively (EXPANDED_UPGRADES_AND_BALANCE.md's
+        // additive-within/multiplicative-across rule — this is its own "tree" of one, so
+        // additive-within doesn't come into play yet, but it multiplies against the base tap
+        // formula same as every other tree would). See BuildingTapPowerBonusSum's own comment
+        // for the rebalancing caveat this introduces.
+        public double TapPower => GameFormulas.SalvagePower(State.tapLevel) * (1 + BuildingTapPowerBonusSum);
 
         public void Tap() => AddDriftwood(TapPower);
 
@@ -168,31 +185,65 @@ namespace Rubrehose.Core
         // --- Cove / mini-boss (CAMERA_AND_UI_SPEC.md "Cove-gate structure",
         // rubrehose_prototype.html — matches Obelisk's exact fight model) -------------
 
-        public double CoveHp => GameFormulas.SerpentHp(WreckBeachData.BiomeIndex, State.coveIndex);
-        public double CoveArmor => GameFormulas.SerpentArmor(WreckBeachData.BiomeIndex, State.coveIndex);
-        public bool CoveMinibossDefeated => State.coveMinibossDefeated[State.coveIndex];
+        // Index 3 (the last of WreckBeachData.CoveNames) is the permanent, endlessly-scaling
+        // serpent fight (CORE_PROGRESSION_RESTRUCTURE.md "Cove 4's serpent") — our Obelisk
+        // equivalent. Indices 0-2 keep the exact one-time mini-boss model already built.
+        public bool IsEndlessCove(int cove) => cove == WreckBeachData.CoveNames.Length - 1;
+
+        // 0 is a valid save value (never reached the endless cove yet) but not a valid fight
+        // level — GameFormulas' level formulas start at 1, and RegisterMiniBossDefeat sets
+        // this to 1 explicitly on first arrival anyway. This getter just makes every other read of
+        // "the current level" (CoveHp/CoveArmor/FightController's display) agree even before
+        // that first-arrival write has happened.
+        private int EffectiveSerpentLevel => Math.Max(1, State.serpentLevel);
+        public int SerpentLevel => EffectiveSerpentLevel;
+
+        public double CoveHp => IsEndlessCove(State.coveIndex)
+            ? GameFormulas.SerpentHpForLevel(EffectiveSerpentLevel)
+            : GameFormulas.SerpentHp(State.coveIndex);
+
+        public double CoveArmor => IsEndlessCove(State.coveIndex)
+            ? GameFormulas.SerpentArmorForLevel(EffectiveSerpentLevel)
+            : GameFormulas.SerpentArmor(State.coveIndex);
+
+        // Always false for the endless cove — it's never "permanently" defeated, only ever
+        // leveled up (RegisterSerpentLevelUp). Guards the coveMinibossDefeated array access,
+        // which is sized only for the 3 finite coves.
+        public bool CoveMinibossDefeated => !IsEndlessCove(State.coveIndex) && State.coveMinibossDefeated[State.coveIndex];
 
         // HP persists in State.bossHpRemaining across attempts; falls back to full HP
-        // before the first-ever attempt on this cove (sentinel -1).
+        // before the first-ever attempt on this cove (sentinel -1). Also what re-arms the
+        // endless cove's next level after a kill (RegisterSerpentLevelUp resets the sentinel).
         public double BossHpRemaining => State.bossHpRemaining < 0 ? CoveHp : State.bossHpRemaining;
 
         // No clears-needed counter, no attempt limit — the only gate is this cooldown
         // (started on retreat/timeout, never on defeat) and whether the boss is already dead.
+        // For the endless cove CoveMinibossDefeated is always false, so this only ever gates
+        // on cooldown there — matching "unlimited attempts" for an unkillable-for-good boss.
         public bool CanAttemptFight => !CoveMinibossDefeated && State.fightCooldownSeconds <= 0f;
 
         public void BeginFightAttempt()
         {
-            if (State.bossHpRemaining < 0) State.bossHpRemaining = CoveHp; // first-ever encounter this cove
+            if (State.bossHpRemaining < 0) State.bossHpRemaining = CoveHp; // first-ever encounter this cove/level
         }
 
-        // Damage always applies (Attack() itself already refuses to call this when
-        // tap power can't overcome armor). Defeat is detected here so HP and the
-        // defeated flag can never drift apart.
-        public void ApplyFightDamage(double dmg)
+        // Damage always applies (Attack() itself already refuses to call this when tap power
+        // can't overcome armor). Defeat is detected here so HP and the defeated/level-up state
+        // can never drift apart. Returns whether this hit finished the current HP pool, so
+        // FightController can react (defeat visual, ending the attempt) without needing to
+        // separately re-derive it from CoveMinibossDefeated — which stays permanently false
+        // for the endless cove and so can't signal "defeated this hit" there.
+        public bool ApplyFightDamage(double dmg)
         {
             State.bossHpRemaining = Math.Max(0, State.bossHpRemaining - dmg);
-            if (State.bossHpRemaining <= 0) RegisterMiniBossDefeat();
-            else RaiseChanged();
+            if (State.bossHpRemaining <= 0)
+            {
+                if (IsEndlessCove(State.coveIndex)) RegisterSerpentLevelUp();
+                else RegisterMiniBossDefeat();
+                return true;
+            }
+            RaiseChanged();
+            return false;
         }
 
         // Called on retreat or fight-timer timeout — never on defeat. Starts the real
@@ -203,9 +254,15 @@ namespace Rubrehose.Core
             RaiseChanged();
         }
 
-        // Winning just flips the current cove's flag and reveals its construction gate —
-        // no clears-needed counter. Re-beating an already-defeated mini-boss (shouldn't
-        // happen once CanAttemptFight gates it, but kept safe) pays no second reward.
+        // Winning immediately unlocks the next cove — no construction-gate payment step
+        // anymore (CORE_PROGRESSION_RESTRUCTURE.md "REMOVED: the construction gate step":
+        // Wreck Beach is one continuous scrollable island now, not disconnected landmasses
+        // needing a bridge built between them). No clears-needed counter, no driftwood reward
+        // either (the old SerpentClearReward was explicitly retired alongside the construction
+        // gate, not retuned — the cove unlock itself is the reward). Re-beating an
+        // already-defeated mini-boss (shouldn't happen once CanAttemptFight gates it, but kept
+        // safe) does nothing further. Finite coves (0-2) only — the endless cove uses
+        // RegisterSerpentLevelUp instead.
         public void RegisterMiniBossDefeat()
         {
             int cove = State.coveIndex;
@@ -216,48 +273,115 @@ namespace Rubrehose.Core
             }
 
             State.coveMinibossDefeated[cove] = true;
-            State.coveConstructionRevealed[cove] = true; // reveal happens the same beat as defeat in this slice
             State.totalClears++;
 
-            double reward = GameFormulas.SerpentClearReward(WreckBeachData.BiomeIndex);
+            int previousCove = State.coveIndex;
+            State.coveIndex++;
+            State.bossHpRemaining = -1; // fresh boss encounter for the new cove
+            State.fightCooldownSeconds = 0f;
+
+            if (IsEndlessCove(State.coveIndex))
+            {
+                State.serpentLevel = 1; // first-ever arrival at the endless cove
+                State.reachedEndlessCove = true; // reveals Captain's Log (MenuDrawerController)
+            }
+
+            RaiseChanged();
+            OnCoveUnlocked?.Invoke(previousCove, State.coveIndex);
+        }
+
+        // Cove 4's serpent never stays "defeated" (CORE_PROGRESSION_RESTRUCTURE.md "Cove 4's
+        // serpent") — beating it at the current level pays a reward, bumps the persistent
+        // serpentLevel counter, and re-arms the HP sentinel so the next attempt (no cooldown
+        // required — see EndFightAttempt) starts fresh against the next, tougher level.
+        public void RegisterSerpentLevelUp()
+        {
+            double reward = GameFormulas.SerpentLevelClearReward(EffectiveSerpentLevel);
             State.driftwood += reward;
             State.totalEarnedAllTime += reward;
+            State.totalClears++;
+
+            State.serpentLevel = EffectiveSerpentLevel + 1;
+            State.bossHpRemaining = -1; // sentinel: next BeginFightAttempt arms the new level's full HP
             RaiseChanged();
         }
 
-        // --- Construction gate (revealed per-cove once its mini-boss falls) -------
+        // --- Cove Buildings (CORE_PROGRESSION_RESTRUCTURE.md "Cove Buildings" — a separate,
+        // optional wealth sink with NO bearing on cove-unlock progression, unlike the removed
+        // construction gate above) -------------------------------------------------------
 
-        private bool IsFinalCove(int cove) => cove >= WreckBeachData.CoveNames.Length - 1;
+        public int GetBuildingStage(string id) => State.buildings.Find(b => b.id == id)?.stage ?? 0;
 
-        // For a past cove, "complete" is just having moved beyond it; the biome's FINAL
-        // cove instead uses constructionComplete, since its crossing unlocks the next
-        // BIOME rather than advancing coveIndex further.
-        public bool IsCoveConstructionComplete(int cove) =>
-            IsFinalCove(cove) ? State.constructionComplete : State.coveIndex > cove;
-
-        public bool ConstructionUnlocked => State.coveConstructionRevealed[State.coveIndex];
-
-        public double ConstructionCost => GameFormulas.ConstructionCost(WreckBeachData.BiomeIndex);
-
-        public bool CanBuildConstruction =>
-            ConstructionUnlocked && !IsCoveConstructionComplete(State.coveIndex) && State.driftwood >= ConstructionCost;
-
-        public void BuildConstruction()
+        private BuildingState GetOrCreateBuildingState(string id)
         {
-            if (!CanBuildConstruction) return;
-            State.driftwood -= ConstructionCost;
+            var b = State.buildings.Find(x => x.id == id);
+            if (b == null)
+            {
+                b = new BuildingState { id = id, stage = 0 };
+                State.buildings.Add(b);
+            }
+            return b;
+        }
 
-            if (IsFinalCove(State.coveIndex))
+        // Sum of tap-power bonuses from every stage already paid, across every building —
+        // additive-within-the-tree per EXPANDED_UPGRADES_AND_BALANCE.md's rule, folded into
+        // TapPower above. Only the Hut exists today (CoveBuildingCatalog), so this is
+        // effectively just the Hut's own paid stages for now.
+        public double BuildingTapPowerBonusSum
+        {
+            get
             {
-                State.constructionComplete = true;
-                State.biomeUnlocked = Math.Max(State.biomeUnlocked, WreckBeachData.BiomeIndex + 1);
+                double sum = 0;
+                foreach (var b in State.buildings)
+                {
+                    var def = CoveBuildingCatalog.Find(b.id);
+                    if (def == null) continue;
+                    for (int i = 0; i < b.stage && i < def.stages.Length; i++)
+                        sum += def.stages[i].tapPowerBonusPercent;
+                }
+                return sum;
             }
-            else
-            {
-                State.coveIndex++;
-                State.bossHpRemaining = -1; // fresh boss encounter for the new cove
-                State.fightCooldownSeconds = 0f;
-            }
+        }
+
+        // A building's cove must actually be reached before it's payable at all — "the world
+        // itself stays silent until something is actually earned" doesn't apply to a cove the
+        // player hasn't even arrived at yet.
+        public bool IsBuildingCoveReached(string id)
+        {
+            var def = CoveBuildingCatalog.Find(id);
+            return def != null && State.coveIndex >= def.coveIndex;
+        }
+
+        public bool CanAffordNextBuildingStage(string id)
+        {
+            var def = CoveBuildingCatalog.Find(id);
+            if (def == null || !IsBuildingCoveReached(id)) return false;
+            int stage = GetBuildingStage(id);
+            if (stage >= def.stages.Length) return false; // already at max stage
+            return State.driftwood >= def.stages[stage].cost;
+        }
+
+        public void PayNextBuildingStage(string id)
+        {
+            if (!CanAffordNextBuildingStage(id)) return;
+            var def = CoveBuildingCatalog.Find(id);
+            int stageIndex = GetBuildingStage(id); // 0-based index into def.stages for the stage about to be paid
+
+            State.driftwood -= def.stages[stageIndex].cost;
+            var b = GetOrCreateBuildingState(id);
+            b.stage++;
+            RaiseChanged();
+            OnBuildingStageCompleted?.Invoke(id, b.stage);
+        }
+
+        // --- Onboarding (CORE_PROGRESSION_RESTRUCTURE.md "Onboarding / tutorial system") --
+
+        public bool HasSeenOnboarding(string id) => State.seenOnboardingIds.Contains(id);
+
+        public void MarkOnboardingSeen(string id)
+        {
+            if (State.seenOnboardingIds.Contains(id)) return;
+            State.seenOnboardingIds.Add(id);
             RaiseChanged();
         }
 

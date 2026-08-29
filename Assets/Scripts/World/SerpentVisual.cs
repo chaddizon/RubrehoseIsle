@@ -30,10 +30,14 @@ namespace Rubrehose.World
         [Header("Defeat")]
         [SerializeField] private float defeatDurationSeconds = 0.9f;
 
+        [Header("Endless-cove respawn (cove 4 only — see FightController.IsEndlessCove)")]
+        [SerializeField] private float respawnDelaySeconds = 0.5f;
+
         private Vector3 _restLocalScale;
         private Vector3 _restLocalPosition;
         private Coroutine _routine;
-        private bool _defeated;
+        private bool _defeated; // permanent — coves 1-3 only, never set for the endless cove
+        private bool _respawning; // mid defeat->respawn tween — endless cove only
 
         private void Awake()
         {
@@ -54,27 +58,38 @@ namespace Rubrehose.World
 
         public void PlayWakeUp()
         {
-            if (_defeated) return;
+            if (_defeated || _respawning) return;
             StartRoutine(WakeUpRoutine());
         }
 
         public void PlayHitFlash()
         {
-            if (_defeated) return;
+            if (_defeated || _respawning) return;
             StartRoutine(HitFlashRoutine());
         }
 
         public void SettleDormant()
         {
-            if (_defeated) return;
+            if (_defeated || _respawning) return;
             StartRoutine(SettleRoutine());
         }
 
+        // Permanent — coves 1-3 only. Collider disabled for good afterward (SetDefeatedImmediate).
         public void PlayDefeat()
         {
             if (_defeated) return;
             _defeated = true;
             StartRoutine(DefeatRoutine());
+        }
+
+        // Endless cove only (FightController.IsEndlessCove) — plays the same kill tween, then
+        // resets back to dormant (collider re-enabled) instead of vanishing forever, ready for
+        // the next, tougher level's encounter.
+        public void PlayDefeatAndRespawn()
+        {
+            if (_respawning) return;
+            _respawning = true;
+            StartRoutine(DefeatAndRespawnRoutine());
         }
 
         private void StartRoutine(IEnumerator routine)
@@ -146,6 +161,27 @@ namespace Rubrehose.World
 
         private IEnumerator DefeatRoutine()
         {
+            yield return DefeatTween();
+            SetDefeatedImmediate();
+        }
+
+        private IEnumerator DefeatAndRespawnRoutine()
+        {
+            yield return DefeatTween();
+            yield return new WaitForSeconds(respawnDelaySeconds);
+
+            transform.localPosition = _restLocalPosition; // undo the tween's sink offset
+            var collider = GetComponent<Collider2D>();
+            if (collider != null) collider.enabled = true; // re-tappable for the next level's encounter
+            SetDormantImmediate();
+            _respawning = false;
+        }
+
+        // Shared shrink/sink/fade tween used by both the permanent (PlayDefeat) and
+        // endless-respawn (PlayDefeatAndRespawn) defeat flows — only what happens after it
+        // differs between the two.
+        private IEnumerator DefeatTween()
+        {
             Vector3 startScale = transform.localScale;
             float startAlpha = spriteRenderer.color.a;
             Vector3 sunkPosition = _restLocalPosition + Vector3.down * 0.3f;
@@ -159,7 +195,6 @@ namespace Rubrehose.World
                 SetAlpha(Mathf.Lerp(startAlpha, 0f, k));
                 yield return null;
             }
-            SetDefeatedImmediate();
         }
 
         private void SetDefeatedImmediate()

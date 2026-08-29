@@ -1,9 +1,11 @@
 namespace Rubrehose.Data
 {
-    // Full 6-biome sequence from GAME_DESIGN.md's biome table — the order is already
-    // locked, even though only Wreck Beach (index 0) has real terrain/content built.
-    // Drives the fast-travel ribbon (CAMERA_AND_UI_SPEC.md), which reads
-    // PlayerState.biomeUnlocked to decide how many of these are shown.
+    // Full 6-biome sequence from GAME_DESIGN.md's original biome table. Unused for now:
+    // CORE_PROGRESSION_RESTRUCTURE.md retires "biome" as a near-term concept — Wreck Beach's
+    // 4 coves (WreckBeachData.CoveNames) are the entire base game, and the fast-travel ribbon
+    // (FastTravelRibbonController) now paginates those coves directly instead of this list.
+    // Kept for the doc's repurposed meaning: "a future, rare, endgame-only full island
+    // expansion," not part of routine progression — wire it up again if/when that gets built.
     public static class BiomeCatalog
     {
         public static readonly string[] Names =

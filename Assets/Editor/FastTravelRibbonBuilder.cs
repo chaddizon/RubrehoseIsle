@@ -84,8 +84,8 @@ namespace Rubrehose.EditorTools
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Selection.activeGameObject = rootRt.gameObject;
             Debug.Log("FastTravelRibbonBuilder: built '" + RootName + "' on " + PersistentCanvasName + ". Assign real sprites on " +
-                       "FastTravelRibbonController.biomeThumbnails and world-X positions on biomeWorldX " +
-                       "as each biome's terrain is built.");
+                       "FastTravelRibbonController.coveThumbnails as each cove's terrain is built — no world-X array to " +
+                       "maintain any more, it pans via CoveViewCamera.GoToCove.");
         }
 
         // --- Hierarchy pieces ------------------------------------------------
@@ -113,7 +113,7 @@ namespace Rubrehose.EditorTools
             var labelRt = CreateUIObject("Label", root);
             Anchor(labelRt, Vector2.zero, Vector2.zero, new Vector2(0.5f, 1f),
                 new Vector2(HandleCenter.x, HandleCenter.y - HandleRadius - 4f), new Vector2(84, 24));
-            label = AddText(labelRt.gameObject, "Wreck Beach", 18, CreamColor, TextAlignmentOptions.Top);
+            label = AddText(labelRt.gameObject, "Landing Cove", 18, CreamColor, TextAlignmentOptions.Top);
 
             return root.gameObject;
         }
@@ -197,7 +197,7 @@ namespace Rubrehose.EditorTools
 
             var labelRt = CreateUIObject("Label", root, registerUndo: false);
             Anchor(labelRt, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), Vector2.zero, new Vector2(72, 22));
-            var labelText = AddText(labelRt.gameObject, "Biome", 14, CreamColor, TextAlignmentOptions.Top);
+            var labelText = AddText(labelRt.gameObject, "Cove", 14, CreamColor, TextAlignmentOptions.Top);
 
             var slotUI = root.gameObject.AddComponent<FastTravelSlotUI>();
             var so = new SerializedObject(slotUI);

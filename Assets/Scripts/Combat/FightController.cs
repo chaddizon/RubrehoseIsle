@@ -17,7 +17,7 @@ namespace Rubrehose.Combat
     // that tracks the serpent's world position rather than taking over the screen.
     //
     // Matches Obelisk's exact model (rubrehose_prototype.html): boss HP persists across
-    // attempts and only resets when GameManager.BuildConstruction advances to a fresh cove;
+    // attempts and only resets when GameManager.RegisterMiniBossDefeat advances to a fresh cove;
     // unlimited attempts gated only by a 20-min real-time cooldown started on timeout (never
     // on defeat); damage below armor deals zero rather than being wasted. World refs wired by
     // LandingCoveBuilder, overlay refs wired by FightOverlayBuilder — see the order note in
@@ -56,6 +56,16 @@ namespace Rubrehose.Combat
         private float _hpDisplayedFraction;
         private float _hpTargetFraction;
 
+        // Multiple coves' FightControllers now share the one overlay RectTransform
+        // (FightOverlayBuilder wires it into every FightController in the scene, since only
+        // one fight can be active anywhere at a time). overlayRoot.gameObject.activeSelf is
+        // therefore shared, racy state — it doesn't tell an instance whether ITS fight is the
+        // one currently driving the overlay. This instance-local flag does: only the
+        // controller that opened the overlay drives its position/HP bar in Update(), so an
+        // unrelated cove's dormant FightController never stomps on it just because the shared
+        // GameObject happens to be active.
+        private bool _showingOverlay;
+
         private void OnDisable()
         {
             if (_active) SetActive(false);
@@ -90,7 +100,11 @@ namespace Rubrehose.Combat
             _hpTargetFraction = Mathf.Clamp01((float)(gm.BossHpRemaining / _hpMax));
             _hpDisplayedFraction = _hpTargetFraction;
 
-            if (serpentNameText != null) serpentNameText.text = WreckBeachData.SerpentNames[gm.State.coveIndex];
+            if (serpentNameText != null)
+            {
+                string baseName = WreckBeachData.SerpentNames[gm.State.coveIndex];
+                serpentNameText.text = gm.IsEndlessCove(gm.State.coveIndex) ? $"{baseName} · Lv {gm.SerpentLevel}" : baseName;
+            }
             UpdateStatsText(gm);
             if (hpSlider != null) hpSlider.value = _hpDisplayedFraction;
             UpdateTimerDisplay();
@@ -98,6 +112,7 @@ namespace Rubrehose.Combat
             if (overlayRoot != null)
             {
                 overlayRoot.gameObject.SetActive(true);
+                _showingOverlay = true;
                 PositionOverlay();
             }
 
@@ -123,8 +138,10 @@ namespace Rubrehose.Combat
 
             // Keeps animating/tracking through the post-fight linger window (defeat or
             // timeout), not just while _active — so the HP bar can finish draining to 0 and
-            // the overlay doesn't jump-cut away from the serpent's position.
-            if (overlayRoot != null && overlayRoot.gameObject.activeSelf)
+            // the overlay doesn't jump-cut away from the serpent's position. Gated on
+            // _showingOverlay (this instance's own flag), not overlayRoot.activeSelf (shared
+            // across every cove's FightController) — see _showingOverlay's comment.
+            if (overlayRoot != null && _showingOverlay)
             {
                 AnimateHpBar();
                 PositionOverlay();
@@ -137,21 +154,28 @@ namespace Rubrehose.Combat
 
             var gm = GameManager.Instance;
             double dmg = Math.Max(0, gm.TapPower - _armor);
+            bool defeated = false;
 
             if (dmg > 0)
             {
-                gm.ApplyFightDamage(dmg);
+                defeated = gm.ApplyFightDamage(dmg);
                 if (serpentVisual != null) serpentVisual.PlayHitFlash();
-                _hpTargetFraction = Mathf.Clamp01((float)(gm.BossHpRemaining / _hpMax));
-                UpdateStatsText(gm);
+                _hpTargetFraction = defeated ? 0f : Mathf.Clamp01((float)(gm.BossHpRemaining / _hpMax));
+                UpdateStatsText(gm, defeated);
             }
 
             SpawnDamagePopup(dmg);
 
-            if (gm.CoveMinibossDefeated)
+            if (defeated)
             {
                 SetActive(false);
-                if (serpentVisual != null) serpentVisual.PlayDefeat();
+                if (serpentVisual != null)
+                {
+                    // Endless cove: same kill tween, but the serpent resets to dormant
+                    // (ready to fight again at the new level) instead of vanishing for good.
+                    if (gm.IsEndlessCove(gm.State.coveIndex)) serpentVisual.PlayDefeatAndRespawn();
+                    else serpentVisual.PlayDefeat();
+                }
                 Invoke(nameof(CloseOverlay), endLingerSeconds);
             }
         }
@@ -173,6 +197,7 @@ namespace Rubrehose.Combat
 
         private void CloseOverlay()
         {
+            _showingOverlay = false;
             if (overlayRoot != null) overlayRoot.gameObject.SetActive(false);
         }
 
@@ -185,10 +210,16 @@ namespace Rubrehose.Combat
             OnFightActiveChanged?.Invoke();
         }
 
-        private void UpdateStatsText(GameManager gm)
+        // forceZeroHp: on the endless cove, a kill immediately bumps serpentLevel and re-arms
+        // gm.BossHpRemaining to the NEXT level's full HP (RegisterSerpentLevelUp), which would
+        // otherwise read back against this attempt's now-stale _hpMax during the post-kill
+        // linger. Finite coves don't have this problem (a kill just leaves bossHpRemaining at
+        // 0), but the caller passes the same defeated flag either way for one consistent rule.
+        private void UpdateStatsText(GameManager gm, bool forceZeroHp = false)
         {
             if (statsText == null) return;
-            statsText.text = $"HP {Format.Number(gm.BossHpRemaining)} / {Format.Number(_hpMax)} · Armor {Format.Number(_armor)}";
+            double hp = forceZeroHp ? 0 : gm.BossHpRemaining;
+            statsText.text = $"HP {Format.Number(hp)} / {Format.Number(_hpMax)} · Armor {Format.Number(_armor)}";
         }
 
         private void UpdateTimerDisplay()

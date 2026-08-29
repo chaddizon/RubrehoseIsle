@@ -15,10 +15,13 @@ namespace Rubrehose.EditorTools
     // the screen: the panel tracks the serpent's world position every frame
     // (FightController.PositionOverlay) instead of sitting fixed in the middle of it.
     //
-    // This only builds the UI half — FightController itself lives on the Serpent GameObject
-    // built by LandingCoveBuilder. Run that tool first or after this one (order doesn't
-    // matter); this tool finds the existing FightController via FindFirstObjectByType and
-    // wires the overlay refs into it.
+    // This only builds the UI half — FightController itself lives on each cove's Serpent
+    // GameObject (LandingCoveBuilder, TidePoolsBuilder, and so on for the coves after that).
+    // Run those tools first or after this one (order doesn't matter); this tool finds every
+    // FightController currently in the scene and wires the same overlay refs into all of
+    // them — safe because only one fight can be active at a time (FightController.IsFightActive
+    // is static), so whichever serpent's fight is actually running is the only one driving the
+    // shared overlay at any given moment.
     public static class FightOverlayBuilder
     {
         private const string RootName = "FightOverlay";
@@ -88,23 +91,27 @@ namespace Rubrehose.EditorTools
             Anchor(timerRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -78), new Vector2(0, 20));
             var timerText = AddText(timerRt.gameObject, "30.0s", 14, InkColor, TextAlignmentOptions.Center);
 
-            var fightController = Object.FindFirstObjectByType<FightController>();
-            if (fightController == null)
+            var fightControllers = Object.FindObjectsByType<FightController>(FindObjectsSortMode.None);
+            if (fightControllers.Length == 0)
             {
                 Debug.LogWarning("FightOverlayBuilder: no FightController found in the scene — run " +
-                                  "Rubrehose > Build Landing Cove first (it builds the Serpent/FightController), " +
-                                  "then re-run this command, or wire the overlay fields onto it manually.");
+                                  "Rubrehose > Build Landing Cove (or Build Tide Pools, etc.) first — each " +
+                                  "builds its own Serpent/FightController — then re-run this command, or wire " +
+                                  "the overlay fields onto it manually.");
             }
             else
             {
-                var so = new SerializedObject(fightController);
-                so.FindProperty("canvasRect").objectReferenceValue = canvas.GetComponent<RectTransform>();
-                so.FindProperty("overlayRoot").objectReferenceValue = rootRt;
-                so.FindProperty("serpentNameText").objectReferenceValue = nameText;
-                so.FindProperty("statsText").objectReferenceValue = statsText;
-                so.FindProperty("hpSlider").objectReferenceValue = slider;
-                so.FindProperty("timerText").objectReferenceValue = timerText;
-                so.ApplyModifiedProperties();
+                foreach (var fightController in fightControllers)
+                {
+                    var so = new SerializedObject(fightController);
+                    so.FindProperty("canvasRect").objectReferenceValue = canvas.GetComponent<RectTransform>();
+                    so.FindProperty("overlayRoot").objectReferenceValue = rootRt;
+                    so.FindProperty("serpentNameText").objectReferenceValue = nameText;
+                    so.FindProperty("statsText").objectReferenceValue = statsText;
+                    so.FindProperty("hpSlider").objectReferenceValue = slider;
+                    so.FindProperty("timerText").objectReferenceValue = timerText;
+                    so.ApplyModifiedProperties();
+                }
             }
 
             EnsureEventSystem();

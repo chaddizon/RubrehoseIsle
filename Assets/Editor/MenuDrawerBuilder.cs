@@ -11,10 +11,12 @@ using static Rubrehose.EditorTools.RubrehoseEditorUtils;
 namespace Rubrehose.EditorTools
 {
     // Builds the menu drawer (HUD_AND_LANDING_COVE_LAYOUT.md §C) — a comic-panel-style
-    // slide-in from the right edge with 6 entry rows. Crew and Upgrades rows open real
-    // content panels (core-loop critical); the rest still just log until those systems
-    // exist. All click wiring lives on MenuDrawerController (assigned here via serialized
-    // fields, not edit-time AddListener) so it survives domain reload / Play mode.
+    // slide-in from the right edge with 7 entry rows. Crew, Upgrades, and Buildings rows
+    // open real content panels; the rest still just log until those systems exist. Buildings
+    // (CORE_PROGRESSION_RESTRUCTURE.md "Cove Buildings") is the only way to pay a building's
+    // Stage 1 — nothing exists in-world to tap before then. All click wiring lives on
+    // MenuDrawerController (assigned here via serialized fields, not edit-time AddListener)
+    // so it survives domain reload / Play mode.
     public static class MenuDrawerBuilder
     {
         private const string RootName = "MenuDrawer";
@@ -73,6 +75,7 @@ namespace Rubrehose.EditorTools
 
             var crewRow = BuildRow(rowList, "Crew");
             var upgradesRow = BuildRow(rowList, "Upgrades");
+            var buildingsRow = BuildRow(rowList, "Buildings");
             var captainsLogRow = BuildRow(rowList, "Captain's Log");
             var milestonesRow = BuildRow(rowList, "Milestones");
             var settingsRow = BuildRow(rowList, "Settings");
@@ -80,6 +83,7 @@ namespace Rubrehose.EditorTools
 
             var crewPanel = BuildCrewPanel(panel);
             var upgradesPanel = BuildUpgradesPanel(panel);
+            var buildingsPanel = BuildBuildingsPanel(panel);
 
             var closeRt = CreateUIObject("CloseButton", panel);
             Anchor(closeRt, new Vector2(1, 1), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -8), new Vector2(28, 28));
@@ -109,6 +113,7 @@ namespace Rubrehose.EditorTools
             so.FindProperty("closeButton").objectReferenceValue = closeButton;
             so.FindProperty("crewRowButton").objectReferenceValue = crewRow.GetComponent<Button>();
             so.FindProperty("upgradesRowButton").objectReferenceValue = upgradesRow.GetComponent<Button>();
+            so.FindProperty("buildingsRowButton").objectReferenceValue = buildingsRow.GetComponent<Button>();
             so.FindProperty("captainsLogRowButton").objectReferenceValue = captainsLogRow.GetComponent<Button>();
             so.FindProperty("milestonesRowButton").objectReferenceValue = milestonesRow.GetComponent<Button>();
             so.FindProperty("settingsRowButton").objectReferenceValue = settingsRow.GetComponent<Button>();
@@ -117,6 +122,7 @@ namespace Rubrehose.EditorTools
             so.FindProperty("rowList").objectReferenceValue = rowList.gameObject;
             so.FindProperty("crewPanel").objectReferenceValue = crewPanel;
             so.FindProperty("upgradesPanel").objectReferenceValue = upgradesPanel;
+            so.FindProperty("buildingsPanel").objectReferenceValue = buildingsPanel;
             so.FindProperty("captainsLogRow").objectReferenceValue = captainsLogRow;
             so.FindProperty("artifactsRow").objectReferenceValue = artifactsRow;
             so.ApplyModifiedProperties();
@@ -127,7 +133,7 @@ namespace Rubrehose.EditorTools
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Selection.activeGameObject = rootRt.gameObject;
             Debug.Log("MenuDrawerBuilder: built '" + RootName + "' on " + PersistentCanvasName + " (starts off-screen — " +
-                       "that's the closed state, not a bug). Crew/Upgrades rows open real panels; the rest still log.");
+                       "that's the closed state, not a bug). Crew/Upgrades/Buildings rows open real panels; the rest still log.");
         }
 
         private static GameObject BuildRow(Transform panel, string label)
@@ -229,6 +235,84 @@ namespace Rubrehose.EditorTools
             var prefab = PrefabUtility.SaveAsPrefabAsset(root.gameObject, "Assets/Prefabs/CrewListItem.prefab");
             Object.DestroyImmediate(root.gameObject);
             return prefab.GetComponent<CrewListItemUI>();
+        }
+
+        // --- Buildings panel (Menu -> Buildings, CORE_PROGRESSION_RESTRUCTURE.md "Cove
+        // Buildings") -------------------------------------------------------------------
+
+        private static GameObject BuildBuildingsPanel(Transform panel)
+        {
+            var root = CreateUIObject("BuildingsPanel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, "Buildings", 20, CreamColor, TextAlignmentOptions.Center);
+
+            var listContainerRt = CreateUIObject("ListContainer", root);
+            Stretch(listContainerRt, new Vector2(16, 16), new Vector2(-16, -56));
+            var listLayout = listContainerRt.gameObject.AddComponent<VerticalLayoutGroup>();
+            listLayout.spacing = 8;
+            listLayout.childControlWidth = true;
+            listLayout.childControlHeight = false;
+            listLayout.childForceExpandWidth = true;
+            listLayout.childForceExpandHeight = false;
+
+            var itemPrefab = BuildAndSaveBuildingItemPrefab();
+
+            var panelController = root.gameObject.AddComponent<BuildingsMenuPanel>();
+            var so = new SerializedObject(panelController);
+            so.FindProperty("listContainer").objectReferenceValue = listContainerRt;
+            so.FindProperty("itemPrefab").objectReferenceValue = itemPrefab;
+            so.ApplyModifiedProperties();
+
+            return root.gameObject;
+        }
+
+        private static BuildingListItemUI BuildAndSaveBuildingItemPrefab()
+        {
+            var root = CreateUIObject("BuildingListItem", null, registerUndo: false);
+            root.sizeDelta = new Vector2(0, 76);
+
+            var bg = root.gameObject.AddComponent<Image>();
+            bg.sprite = UISprite();
+            bg.color = InkColor;
+            var layoutElement = root.gameObject.AddComponent<LayoutElement>();
+            layoutElement.preferredHeight = 76;
+
+            var nameRt = CreateUIObject("NameText", root, registerUndo: false);
+            Stretch(nameRt, new Vector2(12, 44), new Vector2(-12, -4));
+            var nameText = AddText(nameRt.gameObject, "Name", 15, CreamColor, TextAlignmentOptions.BottomLeft);
+
+            var statusRt = CreateUIObject("StatusText", root, registerUndo: false);
+            Stretch(statusRt, new Vector2(12, 4), new Vector2(-12, -22));
+            var statusText = AddText(statusRt.gameObject, "Status", 12, PlaceholderThumbColor, TextAlignmentOptions.TopLeft);
+            statusText.enableWordWrapping = true;
+
+            var buttonRt = CreateUIObject("PayButton", root, registerUndo: false);
+            Anchor(buttonRt, new Vector2(1, 0), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-8, 8), new Vector2(120, 28));
+            var buttonImage = buttonRt.gameObject.AddComponent<Image>();
+            buttonImage.sprite = UISprite();
+            buttonImage.color = TealAccent;
+            var button = buttonRt.gameObject.AddComponent<Button>();
+            button.targetGraphic = buttonImage;
+
+            var buttonLabelRt = CreateUIObject("Label", buttonRt, registerUndo: false);
+            Stretch(buttonLabelRt, Vector2.zero, Vector2.zero);
+            AddText(buttonLabelRt.gameObject, "Build", 13, InkColor, TextAlignmentOptions.Center);
+
+            var item = root.gameObject.AddComponent<BuildingListItemUI>();
+            var itemSo = new SerializedObject(item);
+            itemSo.FindProperty("nameText").objectReferenceValue = nameText;
+            itemSo.FindProperty("statusText").objectReferenceValue = statusText;
+            itemSo.FindProperty("payButton").objectReferenceValue = button;
+            itemSo.ApplyModifiedProperties();
+
+            Directory.CreateDirectory("Assets/Prefabs");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root.gameObject, "Assets/Prefabs/BuildingListItem.prefab");
+            Object.DestroyImmediate(root.gameObject);
+            return prefab.GetComponent<BuildingListItemUI>();
         }
 
         // --- Upgrades panel (Menu -> Upgrades, HUD_AND_LANDING_COVE_LAYOUT.md §C) -------

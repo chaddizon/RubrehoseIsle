@@ -14,20 +14,20 @@ namespace Rubrehose.UI
         [SerializeField] private GameObject highlightRing;
         [SerializeField] private Button button;
 
-        private int _biomeIndex;
+        private int _coveIndex;
         private Action<int> _onSelected;
 
-        public void Bind(int biomeIndex, string biomeName, Sprite thumbnailSprite, bool isCurrent, Action<int> onSelected)
+        public void Bind(int coveIndex, string coveName, Sprite thumbnailSprite, bool isCurrent, Action<int> onSelected)
         {
-            _biomeIndex = biomeIndex;
+            _coveIndex = coveIndex;
             _onSelected = onSelected;
 
-            label.text = biomeName;
+            label.text = coveName;
             if (thumbnailSprite != null) thumbnail.sprite = thumbnailSprite;
             highlightRing.SetActive(isCurrent);
 
             button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(() => _onSelected?.Invoke(_biomeIndex));
+            button.onClick.AddListener(() => _onSelected?.Invoke(_coveIndex));
         }
     }
 }
