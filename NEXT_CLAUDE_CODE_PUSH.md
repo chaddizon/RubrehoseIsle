@@ -191,7 +191,31 @@ where the mountain's rocky flank is exposed against flat sky — that's the natu
 Artifacts tell sprite(s) assigned to this cove, and possibly a good spot for anything else that
 needs to read clearly without competing with the foliage texture.
 
-**The actual PNG file for this background isn't in this handoff doc** — Chad needs to get it
-to you directly (file attach or repo commit), verify actual output pixel dimensions against the
-192×344 portrait convention once it's in-hand (per the "always verify programmatically" lesson
-in `PROJECT_HANDOFF_MASTER.md` — Pixellab has a history of not honoring requested dimensions).
+**Already committed as of this push** — verified at 192×344, matching the locked portrait
+convention. See section 6 below for exact paths.
+
+---
+
+## 6. Repo state as of this push (2026-08-29, ground truth — overrides anything above that references these files more vaguely)
+
+This push changed the on-disk asset layout.
+
+- **Landing Cove background**: overwritten in place at
+  `Assets/Art/Backgrounds/WreckBeach/landingcove1.png` (same filename/path as before — GUID and
+  every existing scene reference are preserved, nothing needs re-linking in the Inspector).
+- **Tide Pools background**: overwritten in place at
+  `Assets/Art/Backgrounds/TidePools/tidepool1.png` (same, GUID preserved).
+- **Grove background**: brand new. `Assets/Art/Backgrounds/Grove/` did not exist before this
+  push — it was created to hold `grove1.png`. **No `GroveBuilder.cs` exists yet** — this is the
+  first time Grove needs its own builder script, following the same cluster-builder pattern
+  `LandingCoveBuilder.cs` and `TidePoolsBuilder.cs` already established (per `HANDOFF.md`'s note
+  that no code changes are needed to build a new cove beyond that pattern).
+- **Folder-naming note, not a bug to fix now**: Landing Cove's art lives under a folder named
+  `WreckBeach`, not `LandingCove` — a leftover from before the cove restructure, already flagged
+  in `HANDOFF.md`'s naming-inconsistency section. Tide Pools and Grove both got proper
+  cove-named folders. Don't "fix" WreckBeach's folder name as part of this push — out of scope,
+  same as the `WreckBeachData.cs` string rename already flagged elsewhere.
+- Since Landing Cove and Tide Pools' backgrounds changed (not just Grove being new), re-check
+  both scenes' object anchors in Play mode once this is pulled in — anchors were originally
+  eyeballed against the old background PNGs, and any composition shift could leave them
+  slightly off.
