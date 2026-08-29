@@ -1,4 +1,4 @@
-# Rubrehose Isle — Master Project Handoff (as of 2026-08-27)
+# Rubrehose Isle — Master Project Handoff (as of 2026-08-29)
 
 For a fresh Claude chat picking this project up with zero prior context. This complements (doesn't replace) the technical docs already in the repo — read this first for the *why* and *how we got here*, then the linked docs for exact specs.
 
@@ -22,12 +22,29 @@ All in the `RubrehoseIsle` repo root unless noted:
 
 ## The 4-cove structure (current, per CORE_PROGRESSION_RESTRUCTURE.md)
 
+**The core framing to hold onto: coves 1-3 are, functionally, the tutorial.** Each is a
+one-time mini-boss gate — defeat it and you're immediately in the next cove, no payment/
+construction step (that existed briefly and was removed 2026-08-27, see below). Once you
+clear cove 3, you land in cove 4: the *actual* endgame loop this whole game is built around,
+a permanent, endlessly-scaling serpent fight that mirrors Idle Obelisk Miner's real Obelisk
+fight 1:1. Coves 1-3 exist to onboard the player (recruiting, tapping, basic combat) into
+that one endless grind — not as separate destinations in their own right.
+
 | # | Cove | Unlocks | Boss |
 |---|---|---|---|
 | 1 | Landing Cove (built) | Basics, Message in a Bottle, Tuggy/Prestige | One-time defeat |
-| 2 | Tide Pools (in progress) | Tidepooling | One-time defeat |
-| 3 | Foraging Grounds (unnamed cove, prompt written, not yet generated as of last message) | Foraging | One-time defeat |
-| 4 | Unnamed — needs a name | Artifacts | **Permanent, endlessly-scaling — this is our "Obelisk"** |
+| 2 | Tide Pools (scaffolded, placeholder objects, not yet visually tuned) | Tidepooling | One-time defeat |
+| 3 | The Grove (locked name; unbuilt) | Foraging | One-time defeat |
+| 4 | The Deep Reef (locked name; unbuilt) | Artifacts | **Permanent, endlessly-scaling — this is our "Obelisk," the real core loop** |
+
+A separate, fully independent system — **Cove Buildings** — was added 2026-08-27: one
+building per cove (only Landing Cove's Hut is designed so far), 3 paid stages each, granting
+real tap-power bonuses. Zero presence in the world until Stage 1 is paid via a new Menu →
+Buildings panel. This has NO bearing on cove-unlock progression — it's a parallel wealth
+sink, same role as Obelisk's Construct/Monument system. **Its bonuses stack on top of the
+existing tap/serpent curve and the base curve has not yet been rebalanced to compensate** —
+flagged in `CORE_PROGRESSION_RESTRUCTURE.md`'s "Rebalancing requirement" section as required
+follow-up, not done.
 
 ## Art direction — the important part not fully captured elsewhere
 
@@ -59,15 +76,28 @@ Pulled directly from sampling Tuggy/BBW/BBC's actual pixel data. **The whole gam
 - Tuggy (final monochrome version, with idle float animation)
 - BBW: tap-reaction, idle loop (2 frames), working loop (4 frames), attack loop (2 frames)
 - BBC/"Big Bad 'Coon": tap-reaction, idle loop (4 frames), working loop (3 frames), attack loop (3 frames)
-- Hut: 3-stage construction set (rubble/half-built/complete), redone once for a more elaborate Stage 3
+- Hut: 3-stage set (originally rubble/half-built/complete construction art; reused as-is for
+  the Cove Building system's 3 paid stages after the construction-gate mechanic they were
+  drawn for was removed), redone once for a more elaborate Stage 3
 - Campfire: 4-frame idle flicker loop
 - Driftwood: 3 pieces, redone once for size (96×64) and once for detail-simplification
 - Flag/bottle-cast marker: 5-frame flutter loop + separate bobbing bottle
 - Backgrounds: Landing Cove (redone twice), Tide Pools (new, matching style)
 
-## Immediate next steps (as of the last message in this chat)
-1. Cove 3 (Foraging Grounds) background prompt was just written, not yet generated/pushed
-2. Cove 4 needs a name
-3. Landing Cove's object positions likely need re-tuning against its latest background redo (same pattern every prior background swap has required)
-4. Per `HANDOFF.md`: verify the working-tree restructure work (4-cove system, Tuggy travel animation, onboarding system) has actually been committed, not just implemented
-5. Cove 4's endless-serpent formula and cove 1-3's fast-opening pacing retune both need real playtesting once implemented — not yet validated against actual elapsed time
+## Immediate next steps (as of 2026-08-29)
+1. Tide Pools' object positions need a nudging pass once actually seen in Play mode (anchors
+   were eyeballed against the flat background PNG, same follow-up Landing Cove's own anchors
+   already went through once).
+2. The Grove (cove 3) and The Deep Reef (cove 4) have no background art or scene content yet.
+3. **Rebalancing pass required, not yet done**: Cove Buildings' tap-power bonuses stack on
+   top of the existing tap/serpent curve — the base curve's growth rate needs to come down to
+   compensate, via simulation (`rubrehose_prototype.html`'s Balance tab or equivalent), not
+   hand-derived math. See `HANDOFF.md` for exactly which formulas/files are affected.
+4. Neither The Grove nor The Deep Reef has a Cove Building designed yet (`CoveBuildingCatalog.cs`
+   only has Landing Cove's Hut) — design one per cove once each cove itself is built, per
+   CORE_PROGRESSION_RESTRUCTURE.md's "make it make sense per cove" note (e.g. Tide Pools'
+   building should boost Tidepooling yield specifically, not generic tap power).
+5. `WreckBeachData.cs`'s cove name strings still say "Foraging Grounds"/"The Deep" — the doc
+   has since locked "The Grove"/"The Deep Reef." Small rename, not yet done.
+6. Cove 4's endless-serpent formula and coves 1-3's fast-opening pacing retune both need real
+   playtesting once implemented — not yet validated against actual elapsed time.

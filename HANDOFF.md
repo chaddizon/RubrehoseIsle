@@ -1,141 +1,129 @@
-# Handoff — Rubrehose Isle session summary (through 2026-08-27)
+# Handoff — Rubrehose Isle session summary (through 2026-08-29)
 
-Catch-up doc for a fresh Claude session picking this project back up. Written from inside
-`RubrehoseIsle` (Unity project root — see `UNITY_SETUP.md` for how to open/build it).
+Catch-up doc for a fresh Claude Code session picking this project back up. Written from
+inside `RubrehoseIsle` (Unity project root — see `UNITY_SETUP.md` for how to open/build it).
+For the higher-level "why" and art-direction history, read `PROJECT_HANDOFF_MASTER.md`
+first, then come back here for exact current code state.
 
 ## Project in one paragraph
 
 Rubrehose Isle is an idle/incremental mobile game mirroring **Idle Obelisk Miner**'s
-progression math (see `GAME_DESIGN.md`), themed around a shipwrecked crew rebuilding a
-deserted island. `rubrehose_prototype.html` (repo root) is a working single-page browser
-prototype that ports Obelisk's actual formulas/state model — it's the ground truth for "does
-this match Obelisk," not a design doc. Only **Wreck Beach** (biome 0) is built in Unity so
-far, and only its first cove, **Landing Cove**, has real world geometry. `UNITY_SETUP.md` is
-the canonical build/setup doc — start there for anything editor-workflow-related.
+progression math, themed around a shipwrecked crew rebuilding a deserted island.
+`rubrehose_prototype.html` (repo root) is a working single-page browser prototype that ports
+Obelisk's actual formulas/state model — ground truth for "does this match Obelisk," not a
+design doc. **The world is no longer "6 biomes"** — per `CORE_PROGRESSION_RESTRUCTURE.md`,
+Wreck Beach's 4 coves ARE the entire base game. Only **Landing Cove** (cove 0) has real,
+validated world geometry; **Tide Pools** (cove 1) has placeholder scene content built but not
+yet visually tuned in Play mode; coves 2-3 don't exist in Unity yet.
 
-## ⚠️ Repo state: most of this session's work is UNCOMMITTED
+## The current progression shape (read this before touching cove/fight code)
 
-`git status` currently shows a large working-tree diff — the entire in-scene fight rewrite,
-crew participation, crew recruit-visibility, and the pacing retune below are all sitting
-**uncommitted** in the working tree. Only two commits from this session actually landed:
+**Coves 1-3 are, functionally, the tutorial.** Each is a one-time mini-boss gate with no
+payment step anymore — defeating a cove's mini-boss immediately advances `coveIndex` to the
+next cove (camera auto-pans to reveal it, a popup announces it). There is no "gather
+materials, then build a crossing" step; that system existed briefly and was **removed
+entirely** on 2026-08-27 (see below). Once you clear cove 3, you land in **cove 4 (the
+endless cove)** — the *actual* core loop this game is built around: a permanent,
+endlessly-scaling serpent fight that mirrors Idle Obelisk Miner's real Obelisk-fight formula
+1:1 (`GameFormulas.SerpentArmorForLevel`, cited armor formula including the ×9.5 jump past
+level 60). Beating it doesn't end anything — it respawns tougher and `serpentLevel` climbs
+forever. Everything before that point (recruiting BBW/BBC, tap upgrades, the 3 finite coves)
+is onboarding-flavored ramp-up to this one endless grind, matching how Obelisk itself is one
+mine with one continuously-scaling boss, not a sequence of discrete zones.
 
-- `52cd457` — BBW attack animation art (2 frames)
-- `def7af4` — BBC attack animation art (3 frames)
+**Cove Buildings** are a second, fully separate system layered on top — NOT part of cove
+progression at all. One building per cove (currently only Landing Cove's Hut is designed),
+3 paid stages each, granting real tap-power bonuses. A building has zero presence in the
+world (no sprite, no collider) until its Stage 1 is paid via **Menu → Buildings** — that
+panel is the only way to pay a building's first stage; once visible, it's directly tappable
+in-world for Stages 2-3.
 
-Everything else described below is real, working-tree code that compiles (verified via the
-Unity Editor's `Logs/Editor.log`, since there's no way to run Unity headless from here) but
-has not been committed. Don't assume `git log` reflects the current feature set — read the
-working tree.
+## ⚠️ Rebalancing required, not yet executed
 
-## Architecture map (new/changed files this session)
+Cove Buildings grant real numeric bonuses that stack multiplicatively on the existing
+tap/serpent curve (`EXPANDED_UPGRADES_AND_BALANCE.md`'s additive-within/multiplicative-across
+rule). `CORE_PROGRESSION_RESTRUCTURE.md` is explicit that the base curve's growth rate needs
+to come down to compensate, and that this must be derived via simulation (the same approach
+used for the earlier serpent HP/Armor pacing retune — `rubrehose_prototype.html`'s Balance
+tab, or an equivalent Unity-side sim), not asserted from formulas by hand. **This has not been
+done.** Every cost/reward number in `CoveBuildingCatalog.cs` and every HP/Armor coefficient in
+`GameFormulas.cs` should be treated as an unbalanced placeholder until that pass happens.
 
-| File | Role |
-|---|---|
-| `Assets/Scripts/Combat/FightController.cs` | Lives directly on the Serpent world GameObject (not a modal). Owns fight state/timer/HP, input (`OnMouseDown`), and a screen-space overlay that tracks the serpent's world position every frame. Static `IsFightActive` / `ActiveSerpent` let other systems (crew) react to a fight without a direct reference. |
-| `Assets/Scripts/World/SerpentVisual.cs` | Wake-up / hit-flash / settle-dormant / defeat reactions via transform+color tweens — no dedicated serpent art exists yet, all placeholder-driven. Snaps straight to "defeated" on scene load if already beaten (reads `GameManager.CoveMinibossDefeated`). |
-| `Assets/Scripts/UI/DamagePopup.cs` | Runtime-spawned floating damage numbers (including a muted "0" for armor-blocked hits). |
-| `Assets/Scripts/UI/Toast.cs` | Runtime-spawned small screen-space notice (currently used only for "X joined the crew!"). Finds `PersistentUICanvas` by name. |
-| `Assets/Scripts/Core/Palette.cs` | Runtime-visible mirror of a few palette colors — `RubrehoseEditorUtils`' copies are Editor-only and unreachable from runtime scripts. |
-| `Assets/Editor/FightOverlayBuilder.cs` | Replaces the deleted `FightModalBuilder.cs`. Builds the serpent's small floating HP-bar/timer panel (no backdrop, no buttons) and wires it into the existing `FightController` (found via `FindFirstObjectByType`). |
-| `Assets/Editor/LandingCoveBuilder.cs` | Frontier cluster now builds a `Serpent` GameObject (white/no-tint, monochrome-character rule) with `SerpentVisual`+`FightController` attached, instead of the old placeholder `MiniBossTrigger`. Also wires BBW/BBC attack frame arrays and per-crew `attackOffset`. |
-| `Assets/Scripts/World/CrewHomeSpotAnimator.cs` | Heavily rewritten this session — see below. |
-| `Assets/Scripts/World/MiniBossTrigger.cs` | **Deleted** — its job (starting a fight on tap) is now just `FightController.OnMouseDown` on the Serpent itself. |
-| `Assets/Scripts/Data/GameFormulas.cs` | Serpent HP/Armor base coefficients retuned this session (see Pacing below). |
+## What changed 2026-08-27 → 2026-08-29 (chronological, on top of the in-scene-fight-system session before it)
 
-## What changed this session (chronological)
+1. **Core progression restructure** (`CORE_PROGRESSION_RESTRUCTURE.md`): retired the
+   6-biome/18-cove plan. Wreck Beach's 4 coves are the whole base game now; cove 4 is the
+   permanent Obelisk-equivalent fight (`GameManager.IsEndlessCove`/`SerpentLevel`,
+   `GameFormulas.SerpentHpForLevel`/`SerpentArmorForLevel`). Tuggy gained a cove-to-cove
+   cruise-in animation (`TuggyTravelController.cs`) — now attached and wired automatically by
+   `Build Landing Cove` (was a manual Inspector step briefly, automated after that proved
+   error-prone).
+2. **Tide Pools scaffolded** (`TidePoolsBuilder.cs`, new): 3-cluster layout (Grove/TidePools/
+   Frontier, no Dock — Tuggy stays anchored to Landing Cove). Real mini-boss/fight wiring;
+   placeholder crew spot and 3 Tidepooling interaction points (no backing minigame exists
+   yet). Anchors are eyeballed against the flat background PNG, not yet validated in Play mode.
+   `FightOverlayBuilder.cs` was fixed to wire its shared HP-bar overlay to *every*
+   `FightController` in the scene (was only wiring the first one found, which would've left
+   Tide Pools' serpent with no UI); `FightController.cs` gained an instance-local
+   `_showingOverlay` flag so two coves sharing one overlay object don't fight over its position.
+3. **Construction gate removed entirely, Cove Buildings added** (this is the big one):
+   - Deleted `ConstructionGate.cs`/`HutConstructionState.cs`. Mini-boss defeat
+     (`GameManager.RegisterMiniBossDefeat`) now advances `coveIndex` immediately — no more
+     `ConstructionCost`/`SerpentClearReward` (`GameFormulas.cs`), no more
+     `PlayerState.coveConstructionRevealed`. `constructionComplete` renamed to
+     `reachedEndlessCove` (same meaning: true once you reach cove 4).
+   - New `CoveBuildingCatalog.cs` (Landing Cove's Hut only so far, 3 stages, placeholder
+     numbers), `CoveBuildingVisual.cs` (zero-presence-until-earned, same hidden mechanism
+     already used for BBW/BBC), `BuildingsMenuPanel.cs`/`BuildingListItemUI.cs` + a
+     `Assets/Prefabs/BuildingListItem.prefab` auto-saved by `MenuDrawerBuilder.cs`.
+   - `GameManager.TapPower` now folds in `BuildingTapPowerBonusSum` — see the rebalancing
+     warning above.
+   - New `GameManager.OnCoveUnlocked` event: `CoveViewCamera` subscribes to auto-pan-reveal
+     the newly unlocked cove (reuses the existing swipe-pan machinery, just triggered by the
+     event instead of a finger release) instead of a silent cut.
+4. **Full 14-popup onboarding sequence** (`OnboardingController.cs`, rewritten): 3
+   unconditional intro popups, contextual triggers for afford-recruit/first-recruit/
+   both-recruited/building-affordable, and event-driven popups for fight-start,
+   cove-unlock-with-pan-reveal, and building-stage-complete. Two rows from the doc's table
+   are honestly NOT wired: Salvage Crate fill (no backing state exists anywhere in
+   `PlayerState`/`GameManager` for it) and Artifacts (no Compass Shard counter exists yet).
+   Hermit-crab/bottle-flag/mini-boss-visibility rows are treated as unconditionally true from
+   cove load, since nothing in this vertical slice actually gates their visibility yet — see
+   the class comment in `OnboardingController.cs` for the honest accounting of what's real
+   vs. approximated vs. deferred.
 
-### 1. Fight modal → in-scene fight (per `IN_SCENE_FIGHT_SYSTEM.md`)
-Replaced the old full-screen fight modal entirely. The serpent is now a persistent world
-object at Landing Cove's Frontier spot; tapping it wakes it up and starts the fight, tapping
-it again deals damage, an HP/timer overlay floats above its world position (screen-space
-overlay, tracks position every frame), and juice was added: damage number pop-ups, hit-
-flash/flinch, smooth HP bar animation, a defeat animation, and a timer color-shift when time
-is low. All fight *mechanics* (persistent HP across attempts, 30s duration, 20-min cooldown,
-unlimited attempts) were kept exactly as they were — this was presentation-only at the time.
+## Known naming inconsistency (flagged, not fixed)
 
-### 2. Crew fight participation (`CrewHomeSpotAnimator.cs`)
-Initially: recruited crew swapped to an in-place "attack" sprite while a fight was active.
-Revised per follow-up request: recruited crew now **physically walk** from their Camp
-HomeSpot out to the serpent (reusing their existing idle frames as a walk-cycle at a faster
-fps — no new art needed for this), hold their attack loop at a small per-crew offset
-(`attackOffset`, BBW flanks left/BBC right so they don't stack) for the fight's duration
-(polled directly off `FightController.IsFightActive`, not event-timing-dependent), then walk
-the same frames back home and resume normal state. `FightController.ActiveSerpent` (static)
-gives them a destination.
-
-BBW's attack art (`bbwattacking1.png`/`bbwattacking2.png`, 2 frames) and BBC's
-(`bbcattacking1-3.png`, 3 frames) both landed and are wired and committed. Both needed two
-fixups after landing: (1) the filenames guessed in `LandingCoveBuilder.cs` before the art
-existed were wrong (`bbwattack1-3` vs the real `bbwattacking1-2`) and had to be corrected;
-(2) the new PNGs auto-imported as plain textures, not sprites (`textureType: 0`), so
-`AssetDatabase.LoadAssetAtPath<Sprite>` would've silently returned null — fixed by hand-
-editing the `.meta` files to match the sibling sprites' import settings.
-
-### 3. Crew visibility + recruit celebration
-Discussed whether recruiting should mirror Obelisk more directly — verified against
-`rubrehose_prototype.html` that BBW/BBC's cost (25), rate (0.5/s), and lack of any unlock
-gating already match Obelisk exactly, and that Obelisk's prototype has **no** toast/animation
-for recruiting at all (plain always-visible button). Decided to add a Rubrehose-specific
-touch anyway. Final behavior (after one revision):
-
-- BBW/BBC have **no sprite and no collider at all until recruited** — nothing stands there,
-  nothing is tappable.
-- The instant a crew member's level first goes from 0→1, a one-shot celebration plays (scale
-  pop + a `Toast` reading "$Name joined the crew!"), then they become a real, full-color,
-  tappable, working presence at that spot.
-- **Important consequence**: since the world collider is only enabled *after* the first
-  recruit, `CrewRecruitSpot`'s world tap can never perform the *first* recruit anymore — that
-  now only works via **Menu → Crew** (`CrewListItemUI`, fully independent of any world
-  collider). World tap and menu both work for leveling further, once recruited.
-
-### 4. Pacing retune (this exchange, not yet playtested)
-Diagnosed why Landing Cove's serpent was trivially easy (~under a minute with a fresh save):
-`GAME_DESIGN.md` documented a "Clears needed = (cove+1) × ClearMult" repeated-defeat
-requirement (5 clears for Landing Cove) that was **never implemented** — the actual code
-(and the Obelisk prototype it explicitly matches) uses a simpler single-persistent-HP-until-
-dead model instead, and the leftover HP/Armor numbers (50 HP / 8 Armor) were far too small
-for that model to gate anything meaningful. Decision: keep the existing mechanic (no
-clears-counter, stay matched to the prototype), retune the numbers instead. New base
-coefficients in `GameFormulas.cs`: **HP 50→36000, Armor 8→15** for Landing Cove (same
-per-cove/per-biome growth curves, only the starting magnitude changed). Target: ~50-60 real
-attempts to clear, which at the real 20-minute cooldown floors out to several real days even
-for a very dedicated player and multiple weeks for a casual 2-3-checks/day player — both
-playstyles valid, active is just faster. This is explicitly a first-pass estimate (see the
-comment block above `SerpentHp`/`SerpentArmor` in `GameFormulas.cs`), not validated against
-real elapsed-time playtesting yet. `GAME_DESIGN.md`'s formulas section and its stale
-"repeated serpent-tier clears" language were updated to match and to stop contradicting the
-code.
+`CORE_PROGRESSION_RESTRUCTURE.md` has since locked cove names as **The Grove** (cove 2) and
+**The Deep Reef** (cove 3) — but `WreckBeachData.cs` still uses the older placeholder names
+("Foraging Grounds", "The Deep"). Not fixed here since it wasn't in scope for the sessions
+that did the work above; do it as its own small pass (rename the two strings in
+`WreckBeachData.CoveNames`) whenever convenient — no other code depends on the literal string
+values.
 
 ## Known gaps / explicitly deferred (don't re-derive these, they're settled)
 
-- **Crew → fight-damage bonus**: `IN_SCENE_FIGHT_SYSTEM.md` mentions crew bonuses "already
-  factor into fight damage via `crewSubBonusSum`" — that's aspirational copy, not real.
-  `TapPower` is currently pure `f(tapLevel)`, no crew term. **Deliberately deferred** — user
-  says this is planned as part of a separate upgrade tree (discussed in another session), not
-  part of the pacing work above.
-- **IAP influence on Obelisk's model**: explicitly out of scope for this session; user wants
-  a fresh Claude *with web access* to research Obelisk's actual IAP model separately before
-  any decision here.
-- **BBC's attack sprite naming convention** was a guess before the art landed and turned out
-  right this time (`bbcattacking1-3.png`), but treat any similar not-yet-painted asset path
-  in `LandingCoveBuilder.cs` as unconfirmed until the file actually exists.
-- Only Landing Cove (cove 0 of biome 0) has real world geometry. Debris Field / Low Tide
-  Flats (coves 1-2) and every biome past Wreck Beach are unbuilt; `GameManager` already
-  handles their state generically (formulas are biome/cove-generic), just no scene content.
-- `ConstructionCost`/`SerpentClearReward` (2500/250 driftwood for Landing Cove) were **not**
-  touched in the pacing retune — by the time a player realistically clears the retuned
-  serpent (days of crew income), these will likely feel trivial. Left alone deliberately
-  (construction is meant to be a small formality after the real gate, the serpent fight), but
-  flagged in case it turns out to feel wrong once playtested.
+- **Crew → fight-damage bonus**: still aspirational copy in `IN_SCENE_FIGHT_SYSTEM.md`, not
+  real. `TapPower` is `f(tapLevel) × (1 + BuildingTapPowerBonusSum)`, no crew term yet.
+- **IAP influence on Obelisk's model**: still explicitly out of scope; needs a fresh
+  web-enabled Claude session to research separately.
+- **Postcards/Companions**: referenced as rewards in `CoveBuildingCatalog.cs`'s Stage 2/3
+  flavor text, but neither system is implemented anywhere in code — those rewards are
+  currently just descriptive strings shown in the onboarding popup, not real grants.
+- The Grove (cove 2) and The Deep Reef (cove 3) have zero scene content. `GameManager`
+  already handles all 4 coves' state generically — no code changes needed to build them,
+  just the same cluster-builder method Landing Cove and Tide Pools already went through.
+- Tide Pools' own Cove Building doesn't exist yet (`CoveBuildingCatalog.cs` only has Landing
+  Cove's Hut) — the doc leaves this "TBD" per-cove.
 
 ## Suggested first things to check in a fresh session
 
-1. Read `UNITY_SETUP.md` in full — it's the maintained source of truth for build order and
-   known follow-ups, kept in sync all session.
-2. Open the Unity Editor, let it recompile, run **Build Landing Cove** then **Build Persistent
-   UI → Fight Overlay** (that exact order matters — see the order note in `UNITY_SETUP.md`).
-3. Delete the old orphaned `PersistentUICanvas/FightModal` GameObject if it's still in the
-   scene (leftover from before the modal→in-scene switch) — its script reference is now
-   missing and it can shadow the real `FightController`.
-4. Consider committing the working-tree changes described above before doing anything else —
-   right now a huge amount of working code exists only locally.
+1. Read `UNITY_SETUP.md` in full — canonical build/setup doc, kept in sync with all the above.
+2. Open Unity, let it recompile, run **Build Landing Cove** → **Build Tide Pools** → **Build
+   Persistent UI → Menu Drawer** → **Build Persistent UI → Fight Overlay**, in that order (the
+   Menu Drawer and Fight Overlay builds need to run *after* whichever cove builders exist, or
+   they won't find everything to wire).
+3. If a save from before 2026-08-27 is loaded, `coveConstructionRevealed`/
+   `constructionComplete` no longer exist as field names — Unity's JSON deserializer will just
+   drop unknown fields and default the renamed/new ones, so this is safe, not a migration
+   concern.
