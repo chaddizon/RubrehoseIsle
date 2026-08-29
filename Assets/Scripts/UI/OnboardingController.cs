@@ -37,11 +37,9 @@ namespace Rubrehose.UI
     // (PersistentHUDController.SetCrateFill exists but nothing calls it, per UNITY_SETUP.md).
     // Firing this popup on any available signal would misrepresent state that doesn't exist.
     // Wire EnqueueIfUnseen(SalvageCrateId, ...) in CheckContextualTriggers once a real crate
-    // fill system exists — same deferred-trigger precedent as Artifacts below.
-    //
-    // Artifacts still has no trigger wired up at all (there's no Compass Shard counter
-    // anywhere in PlayerState to key off yet) — call EnqueueIfUnseen from wherever that
-    // system's "first earned" event lands once it's built.
+    // fill system exists — Compass Shards below are the resolved counterpart: that system now
+    // exists (NEXT_CLAUDE_CODE_PUSH.md §1), so its previously-deferred onboarding trigger is
+    // now wired for real, event-driven off GameManager.OnCompassShardFound.
     public class OnboardingController : MonoBehaviour
     {
         [SerializeField] private OnboardingPopupUI popupUI;
@@ -68,6 +66,10 @@ namespace Rubrehose.UI
         // --- Row 11: fight starts (event-driven) -----------------------------------------
         private const string FightStartsId = "fight_starts";
 
+        // --- Artifacts (event-driven, previously deferred — now wired per
+        // NEXT_CLAUDE_CODE_PUSH.md §1) --------------------------------------------------
+        private const string FirstCompassShardId = "first_compass_shard";
+
         private readonly Queue<(string id, string title, string body)> _queue = new Queue<(string, string, string)>();
         private readonly HashSet<string> _queuedIds = new HashSet<string>(); // in-flight guard between enqueue and dismiss
 
@@ -77,6 +79,7 @@ namespace Rubrehose.UI
             gm.OnStateChanged += CheckContextualTriggers;
             gm.OnCoveUnlocked += HandleCoveUnlocked;
             gm.OnBuildingStageCompleted += HandleBuildingStageCompleted;
+            gm.OnCompassShardFound += HandleCompassShardFound;
             FightController.OnFightActiveChanged += CheckFightStarted;
 
             EnqueueIfUnseen(IntroIslandId, "Shipwrecked!",
@@ -97,6 +100,7 @@ namespace Rubrehose.UI
             gm.OnStateChanged -= CheckContextualTriggers;
             gm.OnCoveUnlocked -= HandleCoveUnlocked;
             gm.OnBuildingStageCompleted -= HandleBuildingStageCompleted;
+            gm.OnCompassShardFound -= HandleCompassShardFound;
             FightController.OnFightActiveChanged -= CheckFightStarted;
         }
 
@@ -203,6 +207,15 @@ namespace Rubrehose.UI
 
             EnqueueIfUnseen($"building_{buildingId}_stage{stage}_complete",
                 $"{def.displayName} Stage {stage} Complete!", reward);
+            TryShowNext();
+        }
+
+        // Previously-deferred Artifacts trigger (NEXT_CLAUDE_CODE_PUSH.md §1), now real —
+        // fires once, on the very first Compass Shard ever found, regardless of tier.
+        private void HandleCompassShardFound(string tier)
+        {
+            EnqueueIfUnseen(FirstCompassShardId, "A Compass Shard!",
+                "A piece of the wreck, washed up at last. Check Menu → Artifacts to appraise it and start recovering the ship.");
             TryShowNext();
         }
 

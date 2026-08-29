@@ -13,8 +13,9 @@ progression math, themed around a shipwrecked crew rebuilding a deserted island.
 Obelisk's actual formulas/state model — ground truth for "does this match Obelisk," not a
 design doc. **The world is no longer "6 biomes"** — per `CORE_PROGRESSION_RESTRUCTURE.md`,
 Wreck Beach's 4 coves ARE the entire base game. Only **Landing Cove** (cove 0) has real,
-validated world geometry; **Tide Pools** (cove 1) has placeholder scene content built but not
-yet visually tuned in Play mode; coves 2-3 don't exist in Unity yet.
+validated world geometry; **Tide Pools** (cove 1) and **The Grove** (cove 2) have placeholder
+scene content built but not yet visually tuned in Play mode; **The Deep Reef** (cove 3)
+doesn't exist in Unity yet.
 
 ## The current progression shape (read this before touching cove/fight code)
 
@@ -99,46 +100,120 @@ done.** Every cost/reward number in `CoveBuildingCatalog.cs` and every HP/Armor 
 4. **Full 14-popup onboarding sequence** (`OnboardingController.cs`, rewritten): 3
    unconditional intro popups, contextual triggers for afford-recruit/first-recruit/
    both-recruited/building-affordable, and event-driven popups for fight-start,
-   cove-unlock-with-pan-reveal, and building-stage-complete. Two rows from the doc's table
-   are honestly NOT wired: Salvage Crate fill (no backing state exists anywhere in
-   `PlayerState`/`GameManager` for it) and Artifacts (no Compass Shard counter exists yet).
+   cove-unlock-with-pan-reveal, and building-stage-complete. One row is honestly NOT wired:
+   Salvage Crate fill (no backing state exists anywhere in `PlayerState`/`GameManager` for it).
    Hermit-crab/bottle-flag/mini-boss-visibility rows are treated as unconditionally true from
    cove load, since nothing in this vertical slice actually gates their visibility yet — see
    the class comment in `OnboardingController.cs` for the honest accounting of what's real
-   vs. approximated vs. deferred.
+   vs. approximated vs. deferred. (Artifacts' trigger was deferred at the time this row was
+   written; it's wired for real now, see item 6 below.)
+5. **The Grove built** (`GroveBuilder.cs`, new, cove index 2): 2-cluster layout (Canopy/
+   Frontier, same "no Dock" reasoning as Tide Pools). Real mini-boss/fight wiring; placeholder
+   crew spot and 3 Foraging interaction points (no backing minigame or Grove crew member exist
+   yet). `WreckBeachData.CoveNames`/`SerpentNames` cove-3/4 slots renamed to match the doc's
+   locked names (`The Grove`, `The Deep Reef`) as part of this — see the naming section above.
+6. **Artifacts system built** (`NEXT_CLAUDE_CODE_PUSH.md` §1) — the account-wide, endgame-
+   facing counterpart to Cove Buildings' per-cove sink:
+   - **Acquisition**: `TellSpot.cs`/`TellSpawner.cs` (new) — 2 dormant "tell" placeholders per
+     built cove (Landing Cove, Tide Pools, The Grove), each cove's `TellSpawner` cycling one
+     of them "live" (glint overlay + tappable) on a randomized timer, weighted toward rarer
+     Compass Shard tiers in later coves / at higher `serpentLevel`
+     (`RarityTier`/`CompassShardCatalog.cs`, new). Untapped live tells auto-collect instead of
+     expiring the reward. **Important divergence from the spec**: the doc asked to "reuse the
+     existing Salvage Crate fill-then-ready timer state machine" — no such system exists in
+     code (Salvage Crate is documented elsewhere as visual-only, no backing logic). `TellSpawner`
+     is a brand-new timer, not a reuse of anything. Its live/timer state is also NOT persisted
+     across app restarts (a scope simplification, not yet raised with Chad) — collected Shards
+     themselves ARE saved immediately, only an in-flight unclaimed live tell reverts to dormant
+     if the app closes first.
+   - **Spending**: Menu → Artifacts panel (`ArtifactsMenuPanel.cs`/`ShardStackItemUI.cs`/
+     `ArtifactNodeUI.cs`, new) — browse/appraise Shards by tier, spend appraised Shards on a
+     4-node placeholder tree (`ArtifactNodeCatalog.cs`) gated to `serpentLevel` milestones.
+     Account-wide, not per-cove, by design. `GameManager.TapPower` now also folds in
+     `ArtifactTapPowerBonusSum` as its own separate multiplicative factor from
+     `BuildingTapPowerBonusSum` — adds to the same rebalancing gap flagged above, not a new one.
+   - **Fast-travel ribbon badges** (`FastTravelSlotUI.cs`/`FastTravelRibbonController.cs`/
+     `FastTravelRibbonBuilder.cs`): a small glow dot per expanded-ribbon slot, plus one on the
+     collapsed handle when some *other* unlocked cove has a live tell — backed by a
+     runtime-only (not persisted) registry on `GameManager` (`CoveHasLiveTell`/
+     `SetCoveTellLive`).
+   - Previously-deferred onboarding row now wired for real: `GameManager.OnCompassShardFound`
+     fires once on the very first Shard ever found, regardless of tier.
+7. **Build hints — persistent markers** (`BuildHintMarker.cs`, new) — complements (doesn't
+   replace) onboarding popup #13. Wired to the exact same `GetBuildingStage`/
+   `IsBuildingCoveReached` state `CoveBuildingVisual` already reads, so it appears/disappears
+   in lockstep with a building's zero-presence window. Landing Cove's Hut gets the "obvious"
+   variant (icon + floating text, wired in `LandingCoveBuilder.cs`) since it's the player's
+   first exposure to Buildings; no other cove has a Cove Building yet to attach the "subtle"
+   (icon-only) variant to.
+8. **Menu Drawer rebuilt to be row-list-driven** (`MenuDrawerController.cs`/
+   `MenuDrawerBuilder.cs`, both substantially rewritten) — a `List<Row>` (id/button/panel)
+   instead of one hardcoded field pair per row, since every system now needs a reachable entry
+   point. 13 rows total: Crew/Upgrades/Buildings/Artifacts/Stats are real panels; Message in a
+   Bottle/Cast a Net, Captain's Log, Milestones, Tidepooling, Foraging, Postcards, Companions
+   are shared "Coming soon" stub panels (`MenuDrawerBuilder.BuildStubPanel`); Settings
+   (`SettingsMenuPanel.cs`, new) is a partial real panel — a genuinely-wired sound toggle
+   (`AudioListener.volume`) plus a deliberately-inert Reset Save button (logs only — NOT wired
+   to actually delete save data without an explicit ask) and static credits text. Stats
+   (`StatsMenuPanel.cs`, new) is a real simple numbers dump (Driftwood, tap power, coves
+   unlocked, serpent level, clears, crew recruited) — all of it already existed in
+   `GameManager`/`PlayerState`, nothing new needed there.
+   **Manual step needed**: the live scene's `MenuDrawer` GameObject still has the *old*
+   per-row serialized fields baked into `WreckBeach.unity` (e.g. `crewRowButton`,
+   `artifactsRowButton`) — harmless orphaned data, not a compile error, but re-run
+   **Build Persistent UI → Menu Drawer** to get the real rebuilt 13-row hierarchy; don't expect
+   the old scene object to already reflect any of this.
 
-## Known naming inconsistency (flagged, not fixed)
+## Naming inconsistency — resolved 2026-08-29
 
-`CORE_PROGRESSION_RESTRUCTURE.md` has since locked cove names as **The Grove** (cove 2) and
-**The Deep Reef** (cove 3) — but `WreckBeachData.cs` still uses the older placeholder names
-("Foraging Grounds", "The Deep"). Not fixed here since it wasn't in scope for the sessions
-that did the work above; do it as its own small pass (rename the two strings in
-`WreckBeachData.CoveNames`) whenever convenient — no other code depends on the literal string
-values.
+`WreckBeachData.CoveNames` now matches `CORE_PROGRESSION_RESTRUCTURE.md`'s locked names
+exactly: `{"Landing Cove", "Tide Pools", "The Grove", "The Deep Reef"}`. (This doc previously
+flagged this as a known-but-unfixed gap; it's fixed now, done naturally while building The
+Grove's scene content.)
 
 ## Known gaps / explicitly deferred (don't re-derive these, they're settled)
 
 - **Crew → fight-damage bonus**: still aspirational copy in `IN_SCENE_FIGHT_SYSTEM.md`, not
-  real. `TapPower` is `f(tapLevel) × (1 + BuildingTapPowerBonusSum)`, no crew term yet.
+  real. `TapPower` is `f(tapLevel) × (1 + BuildingTapPowerBonusSum) × (1 + ArtifactTapPowerBonusSum)`,
+  no crew term yet.
 - **IAP influence on Obelisk's model**: still explicitly out of scope; needs a fresh
   web-enabled Claude session to research separately.
 - **Postcards/Companions**: referenced as rewards in `CoveBuildingCatalog.cs`'s Stage 2/3
   flavor text, but neither system is implemented anywhere in code — those rewards are
-  currently just descriptive strings shown in the onboarding popup, not real grants.
-- The Grove (cove 2) and The Deep Reef (cove 3) have zero scene content. `GameManager`
-  already handles all 4 coves' state generically — no code changes needed to build them,
-  just the same cluster-builder method Landing Cove and Tide Pools already went through.
-- Tide Pools' own Cove Building doesn't exist yet (`CoveBuildingCatalog.cs` only has Landing
-  Cove's Hut) — the doc leaves this "TBD" per-cove.
+  currently just descriptive strings shown in the onboarding popup, not real grants. Both also
+  have "Coming soon" stub Menu Drawer entries now (see item 8 above).
+- **The Deep Reef** (cove 3) has zero scene content — no background art exists for it yet
+  either. `GameManager` already handles all 4 coves' state generically — no code changes
+  needed to build it, just the same cluster-builder method the other 3 coves already went
+  through (copy `GroveBuilder.cs` as the closest/most recent template).
+- Tide Pools' and The Grove's own Cove Buildings don't exist yet (`CoveBuildingCatalog.cs`
+  only has Landing Cove's Hut) — the doc leaves this "TBD" per-cove. Same for their Artifacts
+  tell-spot "live glint" art and per-cove idle-loop base sprites (currently generic placeholder
+  circles/squares for all 3 built coves).
+- **Tell timer/live state isn't persisted** across app restarts (see item 6 above) — a real
+  decision worth making (mirroring `GameManager.ApplyOfflineEarnings`'s elapsed-time approach)
+  if it turns out to matter in practice; not done because it wasn't explicitly asked for and
+  adds real scope.
+- **Rarity-tier weighting formula** (`TellSpawner.RollRarityTier`) and the 4-node
+  `ArtifactNodeCatalog` list are both rough, unflagged-as-final placeholders per the doc's own
+  "use reasonable placeholders and flag them" instruction — expect both to be redesigned once
+  real balance/simulation work happens, same status as `CoveBuildingCatalog.cs`'s numbers.
 
 ## Suggested first things to check in a fresh session
 
 1. Read `UNITY_SETUP.md` in full — canonical build/setup doc, kept in sync with all the above.
 2. Open Unity, let it recompile, run **Build Landing Cove** → **Build Tide Pools** → **Build
-   Persistent UI → Menu Drawer** → **Build Persistent UI → Fight Overlay**, in that order (the
-   Menu Drawer and Fight Overlay builds need to run *after* whichever cove builders exist, or
-   they won't find everything to wire).
-3. If a save from before 2026-08-27 is loaded, `coveConstructionRevealed`/
-   `constructionComplete` no longer exist as field names — Unity's JSON deserializer will just
-   drop unknown fields and default the renamed/new ones, so this is safe, not a migration
+   The Grove** → **Build Persistent UI → Menu Drawer** → **Build Persistent UI → Fight
+   Overlay**, in that order (Menu Drawer and Fight Overlay need to run *after* whichever cove
+   builders exist, or they won't find everything to wire — Menu Drawer specifically needs a
+   fresh rebuild even on an existing scene, since it changed structurally this push, see item
+   8 above).
+3. If a save from before 2026-08-27 is loaded, several `PlayerState` fields have been
+   renamed/added/removed since (`coveConstructionRevealed`/`constructionComplete` ->
+   `reachedEndlessCove`, new `shardStacks`/`artifactNodes` lists) — Unity's JSON deserializer
+   just drops unknown fields and defaults new/renamed ones, so this is safe, not a migration
    concern.
+4. Every new world object this push (tell spots, the build-hint marker) uses eyeballed
+   placeholder anchors, same as every prior cove's initial pass — expect a nudging session
+   once actually seen in Play mode, especially The Grove (never validated at all yet) and the
+   3 coves' newly-added tell-spot positions specifically.

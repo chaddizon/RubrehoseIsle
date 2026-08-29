@@ -11,12 +11,13 @@ using static Rubrehose.EditorTools.RubrehoseEditorUtils;
 namespace Rubrehose.EditorTools
 {
     // Builds the menu drawer (HUD_AND_LANDING_COVE_LAYOUT.md §C) — a comic-panel-style
-    // slide-in from the right edge with 7 entry rows. Crew, Upgrades, and Buildings rows
-    // open real content panels; the rest still just log until those systems exist. Buildings
-    // (CORE_PROGRESSION_RESTRUCTURE.md "Cove Buildings") is the only way to pay a building's
-    // Stage 1 — nothing exists in-world to tap before then. All click wiring lives on
-    // MenuDrawerController (assigned here via serialized fields, not edit-time AddListener)
-    // so it survives domain reload / Play mode.
+    // slide-in from the right edge, now with a full row list per NEXT_CLAUDE_CODE_PUSH.md §3
+    // ("every system in the game" gets a reachable placeholder entry point). Real panels:
+    // Crew, Upgrades, Buildings, Artifacts, Stats. Everything else is a shared "Coming soon"
+    // stub panel (BuildStubPanel) except Settings, which gets a minimal real one
+    // (SettingsMenuPanel). All click wiring lives on MenuDrawerController via its row-list
+    // field (assigned here via SerializedProperty, not edit-time AddListener) so it survives
+    // domain reload / Play mode.
     public static class MenuDrawerBuilder
     {
         private const string RootName = "MenuDrawer";
@@ -74,16 +75,44 @@ namespace Rubrehose.EditorTools
             layout.childForceExpandHeight = false;
 
             var crewRow = BuildRow(rowList, "Crew");
-            var upgradesRow = BuildRow(rowList, "Upgrades");
-            var buildingsRow = BuildRow(rowList, "Buildings");
-            var captainsLogRow = BuildRow(rowList, "Captain's Log");
-            var milestonesRow = BuildRow(rowList, "Milestones");
-            var settingsRow = BuildRow(rowList, "Settings");
-            var artifactsRow = BuildRow(rowList, "Artifacts");
-
             var crewPanel = BuildCrewPanel(panel);
+
+            var upgradesRow = BuildRow(rowList, "Upgrades");
             var upgradesPanel = BuildUpgradesPanel(panel);
+
+            var buildingsRow = BuildRow(rowList, "Buildings");
             var buildingsPanel = BuildBuildingsPanel(panel);
+
+            var artifactsRow = BuildRow(rowList, "Artifacts");
+            var artifactsPanel = BuildArtifactsPanel(panel);
+
+            var bottleRow = BuildRow(rowList, "Message in a Bottle");
+            var bottlePanel = BuildStubPanel(panel, "Message in a Bottle",
+                "Cast a Net and Bottle Toss charges are tracked on the persistent HUD icons for now — a dedicated menu view is coming soon.");
+
+            var captainsLogRow = BuildRow(rowList, "Captain's Log");
+            var captainsLogPanel = BuildStubPanel(panel, "Captain's Log", "Coming soon.");
+
+            var milestonesRow = BuildRow(rowList, "Milestones");
+            var milestonesPanel = BuildStubPanel(panel, "Milestones", "Coming soon.");
+
+            var tidepoolingRow = BuildRow(rowList, "Tidepooling");
+            var tidepoolingPanel = BuildStubPanel(panel, "Tidepooling", "Coming soon.");
+
+            var foragingRow = BuildRow(rowList, "Foraging");
+            var foragingPanel = BuildStubPanel(panel, "Foraging", "Coming soon.");
+
+            var postcardsRow = BuildRow(rowList, "Postcards");
+            var postcardsPanel = BuildStubPanel(panel, "Postcards", "Coming soon.");
+
+            var companionsRow = BuildRow(rowList, "Companions");
+            var companionsPanel = BuildStubPanel(panel, "Companions", "Coming soon.");
+
+            var statsRow = BuildRow(rowList, "Stats");
+            var statsPanel = BuildStatsPanel(panel);
+
+            var settingsRow = BuildRow(rowList, "Settings");
+            var settingsPanel = BuildSettingsPanel(panel);
 
             var closeRt = CreateUIObject("CloseButton", panel);
             Anchor(closeRt, new Vector2(1, 1), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -8), new Vector2(28, 28));
@@ -111,20 +140,37 @@ namespace Rubrehose.EditorTools
             so.FindProperty("panel").objectReferenceValue = panel;
             so.FindProperty("catcherButton").objectReferenceValue = catcherButton;
             so.FindProperty("closeButton").objectReferenceValue = closeButton;
-            so.FindProperty("crewRowButton").objectReferenceValue = crewRow.GetComponent<Button>();
-            so.FindProperty("upgradesRowButton").objectReferenceValue = upgradesRow.GetComponent<Button>();
-            so.FindProperty("buildingsRowButton").objectReferenceValue = buildingsRow.GetComponent<Button>();
-            so.FindProperty("captainsLogRowButton").objectReferenceValue = captainsLogRow.GetComponent<Button>();
-            so.FindProperty("milestonesRowButton").objectReferenceValue = milestonesRow.GetComponent<Button>();
-            so.FindProperty("settingsRowButton").objectReferenceValue = settingsRow.GetComponent<Button>();
-            so.FindProperty("artifactsRowButton").objectReferenceValue = artifactsRow.GetComponent<Button>();
             so.FindProperty("contentBackButton").objectReferenceValue = backButton;
             so.FindProperty("rowList").objectReferenceValue = rowList.gameObject;
-            so.FindProperty("crewPanel").objectReferenceValue = crewPanel;
-            so.FindProperty("upgradesPanel").objectReferenceValue = upgradesPanel;
-            so.FindProperty("buildingsPanel").objectReferenceValue = buildingsPanel;
             so.FindProperty("captainsLogRow").objectReferenceValue = captainsLogRow;
             so.FindProperty("artifactsRow").objectReferenceValue = artifactsRow;
+
+            var rowData = new (GameObject row, GameObject panel)[]
+            {
+                (crewRow, crewPanel),
+                (upgradesRow, upgradesPanel),
+                (buildingsRow, buildingsPanel),
+                (artifactsRow, artifactsPanel),
+                (bottleRow, bottlePanel),
+                (captainsLogRow, captainsLogPanel),
+                (milestonesRow, milestonesPanel),
+                (tidepoolingRow, tidepoolingPanel),
+                (foragingRow, foragingPanel),
+                (postcardsRow, postcardsPanel),
+                (companionsRow, companionsPanel),
+                (statsRow, statsPanel),
+                (settingsRow, settingsPanel),
+            };
+
+            var rowsProp = so.FindProperty("rows");
+            rowsProp.arraySize = rowData.Length;
+            for (int i = 0; i < rowData.Length; i++)
+            {
+                var element = rowsProp.GetArrayElementAtIndex(i);
+                element.FindPropertyRelative("id").stringValue = rowData[i].row.name;
+                element.FindPropertyRelative("button").objectReferenceValue = rowData[i].row.GetComponent<Button>();
+                element.FindPropertyRelative("panel").objectReferenceValue = rowData[i].panel;
+            }
             so.ApplyModifiedProperties();
 
             EnsureEventSystem();
@@ -132,8 +178,9 @@ namespace Rubrehose.EditorTools
 
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Selection.activeGameObject = rootRt.gameObject;
-            Debug.Log("MenuDrawerBuilder: built '" + RootName + "' on " + PersistentCanvasName + " (starts off-screen — " +
-                       "that's the closed state, not a bug). Crew/Upgrades/Buildings rows open real panels; the rest still log.");
+            Debug.Log("MenuDrawerBuilder: built '" + RootName + "' on " + PersistentCanvasName + " with " + rowData.Length +
+                       " rows (starts off-screen — that's the closed state, not a bug). Crew/Upgrades/Buildings/Artifacts/Stats " +
+                       "rows open real panels; the rest are 'Coming soon' stubs (Settings has a minimal real sound toggle).");
         }
 
         private static GameObject BuildRow(Transform panel, string label)
@@ -352,6 +399,250 @@ namespace Rubrehose.EditorTools
             var so = new SerializedObject(panelController);
             so.FindProperty("tapPowerLabel").objectReferenceValue = tapLabel;
             so.FindProperty("tapPowerButton").objectReferenceValue = tapButton;
+            so.ApplyModifiedProperties();
+
+            return root.gameObject;
+        }
+
+        // --- Shared stub panel (NEXT_CLAUDE_CODE_PUSH.md §3: "don't invent a second panel
+        // style for stubs, reuse the one real pattern everywhere") ----------------------
+
+        private static GameObject BuildStubPanel(Transform panel, string title, string body)
+        {
+            var root = CreateUIObject(title.Replace(" ", "").Replace("'", "") + "Panel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, title, 20, CreamColor, TextAlignmentOptions.Center);
+
+            var bodyRt = CreateUIObject("Body", root);
+            Stretch(bodyRt, new Vector2(24, 24), new Vector2(-24, -56));
+            var bodyText = AddText(bodyRt.gameObject, body, 15, PlaceholderThumbColor, TextAlignmentOptions.Top);
+            bodyText.enableWordWrapping = true;
+
+            return root.gameObject;
+        }
+
+        // --- Artifacts panel (Menu -> Artifacts, NEXT_CLAUDE_CODE_PUSH.md §1b) ----------
+
+        private static GameObject BuildArtifactsPanel(Transform panel)
+        {
+            var root = CreateUIObject("ArtifactsPanel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, "Artifacts", 20, CreamColor, TextAlignmentOptions.Center);
+
+            var shardHeaderRt = CreateUIObject("ShardsHeader", root);
+            Anchor(shardHeaderRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -56), new Vector2(-32, 20));
+            AddText(shardHeaderRt.gameObject, "Compass Shards", 14, PlaceholderThumbColor, TextAlignmentOptions.MidlineLeft);
+
+            var shardListRt = CreateUIObject("ShardList", root);
+            Anchor(shardListRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(-32, 200));
+            var shardLayout = shardListRt.gameObject.AddComponent<VerticalLayoutGroup>();
+            shardLayout.spacing = 6;
+            shardLayout.childControlWidth = true;
+            shardLayout.childControlHeight = false;
+            shardLayout.childForceExpandWidth = true;
+            shardLayout.childForceExpandHeight = false;
+
+            var nodesHeaderRt = CreateUIObject("NodesHeader", root);
+            Anchor(nodesHeaderRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -288), new Vector2(-32, 20));
+            AddText(nodesHeaderRt.gameObject, "Recovered Pieces", 14, PlaceholderThumbColor, TextAlignmentOptions.MidlineLeft);
+
+            var nodeListRt = CreateUIObject("NodeList", root);
+            Stretch(nodeListRt, new Vector2(16, 16), new Vector2(-16, -312));
+            var nodeLayout = nodeListRt.gameObject.AddComponent<VerticalLayoutGroup>();
+            nodeLayout.spacing = 8;
+            nodeLayout.childControlWidth = true;
+            nodeLayout.childControlHeight = false;
+            nodeLayout.childForceExpandWidth = true;
+            nodeLayout.childForceExpandHeight = false;
+
+            var shardItemPrefab = BuildAndSaveShardItemPrefab();
+            var nodeItemPrefab = BuildAndSaveArtifactNodeItemPrefab();
+
+            var panelController = root.gameObject.AddComponent<ArtifactsMenuPanel>();
+            var so = new SerializedObject(panelController);
+            so.FindProperty("shardListContainer").objectReferenceValue = shardListRt;
+            so.FindProperty("shardItemPrefab").objectReferenceValue = shardItemPrefab;
+            so.FindProperty("nodeListContainer").objectReferenceValue = nodeListRt;
+            so.FindProperty("nodeItemPrefab").objectReferenceValue = nodeItemPrefab;
+            so.ApplyModifiedProperties();
+
+            return root.gameObject;
+        }
+
+        private static ShardStackItemUI BuildAndSaveShardItemPrefab()
+        {
+            var root = CreateUIObject("ShardStackItem", null, registerUndo: false);
+            root.sizeDelta = new Vector2(0, 48);
+
+            var bg = root.gameObject.AddComponent<Image>();
+            bg.sprite = UISprite();
+            bg.color = InkColor;
+            var layoutElement = root.gameObject.AddComponent<LayoutElement>();
+            layoutElement.preferredHeight = 48;
+
+            var nameRt = CreateUIObject("NameText", root, registerUndo: false);
+            Stretch(nameRt, new Vector2(12, 24), new Vector2(-100, -4));
+            var nameText = AddText(nameRt.gameObject, "Tier", 14, CreamColor, TextAlignmentOptions.BottomLeft);
+
+            var countsRt = CreateUIObject("CountsText", root, registerUndo: false);
+            Stretch(countsRt, new Vector2(12, 4), new Vector2(-100, -24));
+            var countsText = AddText(countsRt.gameObject, "Counts", 11, PlaceholderThumbColor, TextAlignmentOptions.TopLeft);
+
+            var buttonRt = CreateUIObject("AppraiseButton", root, registerUndo: false);
+            Anchor(buttonRt, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-8, 0), new Vector2(84, 36));
+            var buttonImage = buttonRt.gameObject.AddComponent<Image>();
+            buttonImage.sprite = UISprite();
+            buttonImage.color = TealAccent;
+            var button = buttonRt.gameObject.AddComponent<Button>();
+            button.targetGraphic = buttonImage;
+            var buttonLabelRt = CreateUIObject("Label", buttonRt, registerUndo: false);
+            Stretch(buttonLabelRt, Vector2.zero, Vector2.zero);
+            AddText(buttonLabelRt.gameObject, "Appraise", 12, InkColor, TextAlignmentOptions.Center);
+
+            var item = root.gameObject.AddComponent<ShardStackItemUI>();
+            var itemSo = new SerializedObject(item);
+            itemSo.FindProperty("nameText").objectReferenceValue = nameText;
+            itemSo.FindProperty("countsText").objectReferenceValue = countsText;
+            itemSo.FindProperty("appraiseButton").objectReferenceValue = button;
+            itemSo.ApplyModifiedProperties();
+
+            Directory.CreateDirectory("Assets/Prefabs");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root.gameObject, "Assets/Prefabs/ShardStackItem.prefab");
+            Object.DestroyImmediate(root.gameObject);
+            return prefab.GetComponent<ShardStackItemUI>();
+        }
+
+        private static ArtifactNodeUI BuildAndSaveArtifactNodeItemPrefab()
+        {
+            var root = CreateUIObject("ArtifactNodeItem", null, registerUndo: false);
+            root.sizeDelta = new Vector2(0, 76);
+
+            var bg = root.gameObject.AddComponent<Image>();
+            bg.sprite = UISprite();
+            bg.color = InkColor;
+            var layoutElement = root.gameObject.AddComponent<LayoutElement>();
+            layoutElement.preferredHeight = 76;
+
+            var nameRt = CreateUIObject("NameText", root, registerUndo: false);
+            Stretch(nameRt, new Vector2(12, 44), new Vector2(-12, -4));
+            var nameText = AddText(nameRt.gameObject, "Name", 14, CreamColor, TextAlignmentOptions.BottomLeft);
+
+            var statusRt = CreateUIObject("StatusText", root, registerUndo: false);
+            Stretch(statusRt, new Vector2(12, 4), new Vector2(-12, -22));
+            var statusText = AddText(statusRt.gameObject, "Status", 11, PlaceholderThumbColor, TextAlignmentOptions.TopLeft);
+            statusText.enableWordWrapping = true;
+
+            var buttonRt = CreateUIObject("PurchaseButton", root, registerUndo: false);
+            Anchor(buttonRt, new Vector2(1, 0), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-8, 8), new Vector2(110, 28));
+            var buttonImage = buttonRt.gameObject.AddComponent<Image>();
+            buttonImage.sprite = UISprite();
+            buttonImage.color = TealAccent;
+            var button = buttonRt.gameObject.AddComponent<Button>();
+            button.targetGraphic = buttonImage;
+            var buttonLabelRt = CreateUIObject("Label", buttonRt, registerUndo: false);
+            Stretch(buttonLabelRt, Vector2.zero, Vector2.zero);
+            AddText(buttonLabelRt.gameObject, "Recover", 12, InkColor, TextAlignmentOptions.Center);
+
+            var item = root.gameObject.AddComponent<ArtifactNodeUI>();
+            var itemSo = new SerializedObject(item);
+            itemSo.FindProperty("nameText").objectReferenceValue = nameText;
+            itemSo.FindProperty("statusText").objectReferenceValue = statusText;
+            itemSo.FindProperty("purchaseButton").objectReferenceValue = button;
+            itemSo.ApplyModifiedProperties();
+
+            Directory.CreateDirectory("Assets/Prefabs");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root.gameObject, "Assets/Prefabs/ArtifactNodeItem.prefab");
+            Object.DestroyImmediate(root.gameObject);
+            return prefab.GetComponent<ArtifactNodeUI>();
+        }
+
+        // --- Stats panel (Menu -> Stats, NEXT_CLAUDE_CODE_PUSH.md §3: "raw numbers dump is
+        // fine") -------------------------------------------------------------------------
+
+        private static GameObject BuildStatsPanel(Transform panel)
+        {
+            var root = CreateUIObject("StatsPanel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, "Stats", 20, CreamColor, TextAlignmentOptions.Center);
+
+            var bodyRt = CreateUIObject("Body", root);
+            Stretch(bodyRt, new Vector2(24, 24), new Vector2(-24, -56));
+            var bodyText = AddText(bodyRt.gameObject, "Loading...", 15, CreamColor, TextAlignmentOptions.TopLeft);
+            bodyText.enableWordWrapping = true;
+
+            var panelController = root.gameObject.AddComponent<StatsMenuPanel>();
+            var so = new SerializedObject(panelController);
+            so.FindProperty("bodyText").objectReferenceValue = bodyText;
+            so.ApplyModifiedProperties();
+
+            return root.gameObject;
+        }
+
+        // --- Settings panel (Menu -> Settings, NEXT_CLAUDE_CODE_PUSH.md §3: "Sound toggle,
+        // reset/save stub, credits") --------------------------------------------------------
+
+        private static GameObject BuildSettingsPanel(Transform panel)
+        {
+            var root = CreateUIObject("SettingsPanel", panel);
+            Stretch(root, Vector2.zero, Vector2.zero);
+            root.gameObject.SetActive(false);
+
+            var titleRt = CreateUIObject("Title", root);
+            Anchor(titleRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(0, 32));
+            AddText(titleRt.gameObject, "Settings", 20, CreamColor, TextAlignmentOptions.Center);
+
+            var soundRowRt = CreateUIObject("SoundRow", root);
+            Anchor(soundRowRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -56), new Vector2(-32, 40));
+            var soundLabelRt = CreateUIObject("Label", soundRowRt);
+            Anchor(soundLabelRt, Vector2.zero, new Vector2(0.6f, 1), new Vector2(0, 0.5f), Vector2.zero, Vector2.zero);
+            AddText(soundLabelRt.gameObject, "Sound", 15, CreamColor, TextAlignmentOptions.MidlineLeft);
+
+            var toggleRt = CreateUIObject("Toggle", soundRowRt);
+            Anchor(toggleRt, new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f), Vector2.zero, new Vector2(40, 24));
+            var toggleBg = toggleRt.gameObject.AddComponent<Image>();
+            toggleBg.sprite = UISprite();
+            toggleBg.color = InkColor;
+            var toggle = toggleRt.gameObject.AddComponent<Toggle>();
+            toggle.targetGraphic = toggleBg;
+            var checkRt = CreateUIObject("Checkmark", toggleRt);
+            Stretch(checkRt, new Vector2(4, 4), new Vector2(-4, -4));
+            var checkImage = checkRt.gameObject.AddComponent<Image>();
+            checkImage.color = TealAccent;
+            toggle.graphic = checkImage;
+            toggle.isOn = true;
+
+            var resetRt = CreateUIObject("ResetSaveButton", root);
+            Anchor(resetRt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -112), new Vector2(-32, 40));
+            var resetImage = resetRt.gameObject.AddComponent<Image>();
+            resetImage.sprite = UISprite();
+            resetImage.color = InkColor;
+            var resetButton = resetRt.gameObject.AddComponent<Button>();
+            resetButton.targetGraphic = resetImage;
+            var resetLabelRt = CreateUIObject("Label", resetRt);
+            Stretch(resetLabelRt, Vector2.zero, Vector2.zero);
+            AddText(resetLabelRt.gameObject, "Reset Save", 14, CreamColor, TextAlignmentOptions.Center);
+
+            var creditsRt = CreateUIObject("Credits", root);
+            Stretch(creditsRt, new Vector2(24, 24), new Vector2(-24, -168));
+            var creditsText = AddText(creditsRt.gameObject, "Rubrehose Isle\nMade by Chad.\n\"BE BAD!\"", 13, PlaceholderThumbColor, TextAlignmentOptions.Top);
+            creditsText.enableWordWrapping = true;
+
+            var panelController = root.gameObject.AddComponent<SettingsMenuPanel>();
+            var so = new SerializedObject(panelController);
+            so.FindProperty("soundToggle").objectReferenceValue = toggle;
+            so.FindProperty("resetSaveButton").objectReferenceValue = resetButton;
             so.ApplyModifiedProperties();
 
             return root.gameObject;

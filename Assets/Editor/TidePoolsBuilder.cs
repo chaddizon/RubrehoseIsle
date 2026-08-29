@@ -77,6 +77,14 @@ namespace Rubrehose.EditorTools
         // TidePools clusters the same way Landing Cove's Frontier stands apart from its Camp.
         private static readonly Vector2 SerpentAnchor = new Vector2(0.87f, 0.60f);
 
+        // Artifacts tell spots (NEXT_CLAUDE_CODE_PUSH.md §1a) — upper sky/mountain area, clear
+        // of every other cluster's anchors.
+        private static readonly Vector2[] TellAnchors =
+        {
+            new Vector2(0.20f, 0.20f),
+            new Vector2(0.55f, 0.15f),
+        };
+
         private static Vector2 AnchorToWorld(Vector2 anchor) => new Vector2(
             Mathf.Lerp(-BackgroundWidth / 2f, BackgroundWidth / 2f, anchor.x),
             Mathf.Lerp(BackgroundHeight / 2f, -BackgroundHeight / 2f, anchor.y)); // v=0 is the top of the image (+Y)
@@ -116,12 +124,15 @@ namespace Rubrehose.EditorTools
                 AnchorToWorld(TidePoolAnchors[1]),
                 AnchorToWorld(TidePoolAnchors[2]),
                 AnchorToWorld(SerpentAnchor),
+                AnchorToWorld(TellAnchors[0]),
+                AnchorToWorld(TellAnchors[1]),
             };
 
             BuildBackground(root.transform);
             BuildGroveCluster(root.transform, clickablePositions);
             BuildTidePoolCluster(root.transform, clickablePositions);
             BuildFrontierCluster(root.transform, clickablePositions);
+            BuildArtifactsCluster(root.transform, clickablePositions);
 
             EnsureEventSystem(); // harmless if a Canvas already added one; OnMouseDown itself doesn't need it
             Undo.CollapseUndoOperations(undoGroup);
@@ -227,6 +238,43 @@ namespace Rubrehose.EditorTools
             var fightControllerSo = new SerializedObject(fightController);
             fightControllerSo.FindProperty("serpentVisual").objectReferenceValue = serpentVisual;
             fightControllerSo.ApplyModifiedProperties();
+        }
+
+        // Artifacts tell spots (NEXT_CLAUDE_CODE_PUSH.md §1a) — same pattern as
+        // LandingCoveBuilder.BuildArtifactsCluster: dormant idle-loop placeholders with a
+        // placeholder "live glint" overlay child, wrapped by TellSpot, cycled by one
+        // TellSpawner per cove.
+        private static void BuildArtifactsCluster(Transform parent, List<Vector2> clickablePositions)
+        {
+            var cluster = new GameObject("Artifacts");
+            Undo.RegisterCreatedObjectUndo(cluster, "Build Tide Pools");
+            cluster.transform.SetParent(parent, false);
+
+            var tells = new TellSpot[TellAnchors.Length];
+            for (int i = 0; i < TellAnchors.Length; i++)
+            {
+                Vector2 pos = AnchorToWorld(TellAnchors[i]);
+                var spot = CreateWorldSprite($"Tell_{i + 1}", cluster.transform, pos, 0.6f, CircleSprite(), PlaceholderThumbColor, 1);
+                var collider = AddFittedBoxCollider2D(spot);
+                CapColliderToNearestNeighbor(collider, pos, clickablePositions, spot.transform.localScale.x);
+
+                var glint = CreateWorldSprite("LiveGlint", spot.transform, Vector2.zero, 1.2f, SquareSprite(), TealAccent, 2, showDebugLabel: false);
+                glint.SetActive(false);
+
+                var tellSpot = spot.AddComponent<TellSpot>();
+                var tellSo = new SerializedObject(tellSpot);
+                tellSo.FindProperty("liveGlintOverlay").objectReferenceValue = glint;
+                tellSo.ApplyModifiedProperties();
+                tells[i] = tellSpot;
+            }
+
+            var spawner = cluster.AddComponent<TellSpawner>();
+            var spawnerSo = new SerializedObject(spawner);
+            spawnerSo.FindProperty("coveIndex").intValue = CoveIndex;
+            var tellsProp = spawnerSo.FindProperty("tells");
+            tellsProp.arraySize = tells.Length;
+            for (int i = 0; i < tells.Length; i++) tellsProp.GetArrayElementAtIndex(i).objectReferenceValue = tells[i];
+            spawnerSo.ApplyModifiedProperties();
         }
 
         // Same neighbor-spacing safety cap as LandingCoveBuilder's — caps each object's

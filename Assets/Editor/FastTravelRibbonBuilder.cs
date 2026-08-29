@@ -54,7 +54,7 @@ namespace Rubrehose.EditorTools
             Anchor(rootRt, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
 
             var slotPrefab = BuildAndSaveSlotPrefab();
-            var handleGO = BuildCollapsedHandle(rootRt, out var handleButton, out var handleThumb, out var handleLabel);
+            var handleGO = BuildCollapsedHandle(rootRt, out var handleButton, out var handleThumb, out var handleLabel, out var handleLiveBadge);
             var ribbonGO = BuildExpandedRibbon(rootRt, out var slotContainer, out var closeButton);
 
             var controller = Undo.AddComponent<FastTravelRibbonController>(rootRt.gameObject);
@@ -71,6 +71,7 @@ namespace Rubrehose.EditorTools
             so.FindProperty("collapsedThumbnail").objectReferenceValue = handleThumb;
             so.FindProperty("collapsedLabel").objectReferenceValue = handleLabel;
             so.FindProperty("collapsedHandleButton").objectReferenceValue = handleButton;
+            so.FindProperty("collapsedLiveTellBadge").objectReferenceValue = handleLiveBadge;
             so.FindProperty("expandedRibbon").objectReferenceValue = ribbonGO;
             so.FindProperty("slotContainer").objectReferenceValue = slotContainer;
             so.FindProperty("slotPrefab").objectReferenceValue = slotPrefab;
@@ -90,7 +91,7 @@ namespace Rubrehose.EditorTools
 
         // --- Hierarchy pieces ------------------------------------------------
 
-        private static GameObject BuildCollapsedHandle(Transform parent, out Button button, out Image thumbnail, out TMP_Text label)
+        private static GameObject BuildCollapsedHandle(Transform parent, out Button button, out Image thumbnail, out TMP_Text label, out GameObject liveTellBadge)
         {
             var root = CreateUIObject("CollapsedHandle", parent);
             Anchor(root, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
@@ -114,6 +115,17 @@ namespace Rubrehose.EditorTools
             Anchor(labelRt, Vector2.zero, Vector2.zero, new Vector2(0.5f, 1f),
                 new Vector2(HandleCenter.x, HandleCenter.y - HandleRadius - 4f), new Vector2(84, 24));
             label = AddText(labelRt.gameObject, "Landing Cove", 18, CreamColor, TextAlignmentOptions.Top);
+
+            // "Something's live in another cove" badge (NEXT_CLAUDE_CODE_PUSH.md §1a) — small
+            // glow dot, top-right of the circle. Hidden by default; FastTravelRibbonController
+            // toggles it.
+            var badgeRt = CreateUIObject("LiveTellBadge", circle);
+            Anchor(badgeRt, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 0.5f), new Vector2(-2, -2), new Vector2(16, 16));
+            var badgeImage = badgeRt.gameObject.AddComponent<Image>();
+            badgeImage.sprite = KnobSprite();
+            badgeImage.color = TealAccent;
+            liveTellBadge = badgeRt.gameObject;
+            liveTellBadge.SetActive(false);
 
             return root.gameObject;
         }
@@ -199,12 +211,22 @@ namespace Rubrehose.EditorTools
             Anchor(labelRt, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), Vector2.zero, new Vector2(72, 22));
             var labelText = AddText(labelRt.gameObject, "Cove", 14, CreamColor, TextAlignmentOptions.Top);
 
+            // Live-tell badge (NEXT_CLAUDE_CODE_PUSH.md §1a) — small glow dot, top-right of the
+            // thumbnail. Hidden by default; FastTravelSlotUI.SetLiveTellBadge toggles it.
+            var badgeRt = CreateUIObject("LiveTellBadge", thumb, registerUndo: false);
+            Anchor(badgeRt, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(14, 14));
+            var badgeImage = badgeRt.gameObject.AddComponent<Image>();
+            badgeImage.sprite = KnobSprite();
+            badgeImage.color = TealAccent;
+            badgeRt.gameObject.SetActive(false);
+
             var slotUI = root.gameObject.AddComponent<FastTravelSlotUI>();
             var so = new SerializedObject(slotUI);
             so.FindProperty("thumbnail").objectReferenceValue = thumbImage;
             so.FindProperty("label").objectReferenceValue = labelText;
             so.FindProperty("highlightRing").objectReferenceValue = ring.gameObject;
             so.FindProperty("button").objectReferenceValue = button;
+            so.FindProperty("liveTellBadge").objectReferenceValue = badgeRt.gameObject;
             so.ApplyModifiedProperties();
 
             Directory.CreateDirectory("Assets/Prefabs");

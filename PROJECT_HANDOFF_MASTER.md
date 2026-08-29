@@ -18,6 +18,7 @@ All in the `RubrehoseIsle` repo root unless noted:
 - **`CORE_PROGRESSION_RESTRUCTURE.md`** — **the most recent major structural change.** Retired the original 6-biome/18-cove plan. Now: 4 coves total = the entire base game (not a tutorial into more biomes). Read this before assuming anything from GAME_DESIGN.md's old structure section.
 - **`WRECK_BEACH_CHECKLIST.md`** — art asset checklist, has a note flagging it predates the pixel-art pivot (some dimensions are stale, check before trusting).
 - **`HANDOFF.md`** — Claude Code's own session-state summary (what's committed vs uncommitted, architecture map of recent script changes). Check this for the actual current code state, since it's more current than any doc here for that specific question.
+- **`NEXT_CLAUDE_CODE_PUSH.md`** — the Artifacts/Build Hints/Placeholder-UI-overhaul spec handed to Claude Code 2026-08-29. Implemented as of this doc's revision (see `HANDOFF.md`'s changelog) — kept in the repo as the historical spec + its own tracking checklist (§4) for the remaining art-replacement punch list, not as a pending to-do.
 - **`rubrehose_prototype.html`** — browser prototype implementing Obelisk's real formulas. Ground truth for "does this match Obelisk," not just a mockup.
 
 ## The 4-cove structure (current, per CORE_PROGRESSION_RESTRUCTURE.md)
@@ -47,18 +48,25 @@ this through.
 |---|---|---|---|
 | 1 | Landing Cove (built) | Basics, Message in a Bottle, Tuggy/Prestige | One-time defeat |
 | 2 | Tide Pools (scaffolded, placeholder objects, not yet visually tuned) | Tidepooling | One-time defeat |
-| 3 | The Grove (locked name; unbuilt) | Foraging (and maybe Artifacts, see open question above) | One-time defeat |
-| 4 | The Deep Reef (locked name; unbuilt) | Artifacts (placement not final, see above) | **Permanent, endlessly-scaling — this is our "Obelisk," the real endgame boss** |
+| 3 | The Grove (scaffolded 2026-08-29, placeholder objects, not yet visually tuned) | Foraging (and maybe Artifacts, see open question above) | One-time defeat |
+| 4 | The Deep Reef (locked name; unbuilt — no background art yet either) | Artifacts (placement not final, see above) | **Permanent, endlessly-scaling — this is our "Obelisk," the real endgame boss** |
 
-A separate, fully independent system — **Cove Buildings** — was added 2026-08-27: one
-building per cove (only Landing Cove's Hut is designed so far), 3 paid stages each, granting
-real tap-power bonuses. Zero presence in the world until Stage 1 is paid via a new Menu →
-Buildings panel. This has NO bearing on cove-unlock progression — it's a parallel wealth
-sink, same role as Obelisk's Construct/Monument system, and per Chad's framing above this is
-exactly the kind of system the *post-tutorial* real game loop revolves around. **Its bonuses
-stack on top of the existing tap/serpent curve and the base curve has not yet been rebalanced
-to compensate** — flagged in `CORE_PROGRESSION_RESTRUCTURE.md`'s "Rebalancing requirement"
-section as required follow-up, not done.
+Two separate, fully independent systems sit alongside cove-unlock progression — both are
+exactly the kind of system the *post-tutorial* real game loop revolves around, per Chad's
+framing above:
+
+- **Cove Buildings** (added 2026-08-27): one building per cove (only Landing Cove's Hut is
+  designed so far), 3 paid stages each, granting real tap-power bonuses. Zero presence in the
+  world until Stage 1 is paid via Menu → Buildings.
+- **Artifacts** (added 2026-08-29): the account-wide counterpart — find Compass Shards from
+  randomly-timed "tell" spawn points scattered around each built cove, appraise them, spend
+  them on a permanent tree gated to `serpentLevel` milestones (Menu → Artifacts). Mirrors
+  Obelisk's real Archaeology/Fragment system loosely, themed as recovering the wrecked ship.
+
+**Both stack real numeric bonuses on top of the existing tap/serpent curve, and the base
+curve has not yet been rebalanced to compensate for either** — flagged in
+`CORE_PROGRESSION_RESTRUCTURE.md`'s "Rebalancing requirement" section as required follow-up,
+still not done as of 2026-08-29.
 
 ## Art direction — the important part not fully captured elsewhere
 
@@ -96,22 +104,32 @@ Pulled directly from sampling Tuggy/BBW/BBC's actual pixel data. **The whole gam
 - Campfire: 4-frame idle flicker loop
 - Driftwood: 3 pieces, redone once for size (96×64) and once for detail-simplification
 - Flag/bottle-cast marker: 5-frame flutter loop + separate bobbing bottle
-- Backgrounds: Landing Cove (redone twice), Tide Pools (new, matching style)
+- Backgrounds: Landing Cove (redone twice), Tide Pools (redone once, matching style), The
+  Grove (new 2026-08-29)
 
-## Immediate next steps (as of 2026-08-29)
-1. Tide Pools' object positions need a nudging pass once actually seen in Play mode (anchors
-   were eyeballed against the flat background PNG, same follow-up Landing Cove's own anchors
-   already went through once).
-2. The Grove (cove 3) and The Deep Reef (cove 4) have no background art or scene content yet.
-3. **Rebalancing pass required, not yet done**: Cove Buildings' tap-power bonuses stack on
-   top of the existing tap/serpent curve — the base curve's growth rate needs to come down to
-   compensate, via simulation (`rubrehose_prototype.html`'s Balance tab or equivalent), not
-   hand-derived math. See `HANDOFF.md` for exactly which formulas/files are affected.
-4. Neither The Grove nor The Deep Reef has a Cove Building designed yet (`CoveBuildingCatalog.cs`
+## Immediate next steps (as of 2026-08-29, post Artifacts/Build-Hints/Placeholder-UI push)
+1. Tide Pools' and The Grove's object positions both need a nudging pass once actually seen in
+   Play mode (anchors were eyeballed against the flat background PNGs, same follow-up Landing
+   Cove's own anchors already went through). The Grove in particular has never been validated
+   in Play mode at all yet.
+2. **The Deep Reef (cove 4) has no background art or scene content yet at all** — the one
+   remaining cove. Per its own design note, it should look deliberately water-dominant/
+   endgame-distinct from the other three sandy coves.
+3. **Rebalancing pass required, not yet done**: Cove Buildings' AND Artifacts' bonuses both
+   stack on top of the existing tap/serpent curve — the base curve's growth rate needs to come
+   down to compensate, via simulation (`rubrehose_prototype.html`'s Balance tab or
+   equivalent), not hand-derived math. See `HANDOFF.md` for exactly which formulas/files are
+   affected — this gap is bigger now than it was before this push, not smaller.
+4. Neither Tide Pools nor The Grove has a Cove Building designed yet (`CoveBuildingCatalog.cs`
    only has Landing Cove's Hut) — design one per cove once each cove itself is built, per
    CORE_PROGRESSION_RESTRUCTURE.md's "make it make sense per cove" note (e.g. Tide Pools'
    building should boost Tidepooling yield specifically, not generic tap power).
-5. `WreckBeachData.cs`'s cove name strings still say "Foraging Grounds"/"The Deep" — the doc
-   has since locked "The Grove"/"The Deep Reef." Small rename, not yet done.
+5. Real per-cove Artifacts tell-sprite art (idle-loop base + "live" glint overlay) — currently
+   generic placeholder circles/squares in all 3 built coves. See `NEXT_CLAUDE_CODE_PUSH.md`
+   §4's tracking checklist for the full placeholder-UI punch list (menu row icons, panel
+   frames, badge art, etc.) alongside this.
 6. Cove 4's endless-serpent formula and coves 1-3's fast-opening pacing retune both need real
    playtesting once implemented — not yet validated against actual elapsed time.
+7. Whether the Reset Save button in the new Settings panel should ever actually be wired to
+   delete save data is an open product decision, not a technical one — it's deliberately inert
+   right now.

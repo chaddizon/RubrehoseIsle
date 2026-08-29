@@ -160,19 +160,25 @@ art UI pass later. Claude Code: add to this list (in this file, or wherever the 
 convention prefers) any placeholder element created during this push that isn't already here.
 
 - [ ] Menu Drawer background/frame (currently Unity default panel)
-- [ ] Menu Drawer row icons — one per system row in the table above (currently none/default)
+- [ ] Menu Drawer row icons — one per system row in the table above, now 13 rows built
+      (currently none/default — every row shares the same generic knob-sprite icon placeholder)
 - [ ] Panel header bar background + close button art
-- [ ] Panel content background/frame (shared across all panels per the reuse rule above)
-- [ ] Button art (primary action buttons — recruit, appraise, pay-stage, etc.) — currently
-      Unity default buttons
+- [ ] Panel content background/frame (shared across all panels per the reuse rule above,
+      including the new Artifacts/Stats/Settings panels and every stub panel)
+- [ ] Button art (primary action buttons — recruit, appraise, pay-stage, recover-node, reset
+      save, etc.) — currently Unity default buttons
 - [ ] Currency icons — Driftwood, Compass Shards, any others referenced in panel UI text
 - [ ] Body/header text — currently system font, will need Rubrehose's stylized
       treatment/font eventually
-- [ ] Build-hint marker icon (obvious version, Landing Cove) and subtle version (coves 2-4)
-- [ ] Fast-travel ribbon notification badge art
+- [ ] Build-hint marker icon (obvious version, Landing Cove — built) and subtle version
+      (coves 2-4 — not yet buildable, no Cove Building exists for them yet)
+- [ ] Fast-travel ribbon notification badge art (currently a plain teal knob-sprite dot, both
+      the collapsed-handle and per-slot versions)
 - [ ] Artifacts tell-sprite "live state" glint/sparkle overlay (base idle-loop sprites are
       Chad's normal per-cove art pass, not placeholder UI — only the glint overlay is a UI
-      placeholder concern)
+      placeholder concern; currently a plain teal square, placed on Landing Cove/Tide
+      Pools/The Grove's 2 tell spots each)
+- [ ] Settings sound-toggle art (currently a default Unity Toggle checkbox)
 
 ---
 

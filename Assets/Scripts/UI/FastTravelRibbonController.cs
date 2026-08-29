@@ -26,6 +26,8 @@ namespace Rubrehose.UI
         [SerializeField] private Image collapsedThumbnail;
         [SerializeField] private TMP_Text collapsedLabel;
         [SerializeField] private Button collapsedHandleButton;
+        [Tooltip("Shown when some OTHER unlocked cove (not the currently-settled one) has a live Artifacts tell (NEXT_CLAUDE_CODE_PUSH.md §1a) — lets players notice without expanding/camp-scrolling every cove.")]
+        [SerializeField] private GameObject collapsedLiveTellBadge;
 
         [Header("Expanded ribbon")]
         [SerializeField] private GameObject expandedRibbon;
@@ -47,6 +49,7 @@ namespace Rubrehose.UI
             worldCamera.OnSettled += HandleSettled;
             collapsedHandleButton.onClick.AddListener(Expand);
             closeButton.onClick.AddListener(Collapse);
+            GameManager.Instance.OnStateChanged += RefreshLiveTellBadges;
 
             _settledCoveIndex = worldCamera.CurrentCoveIndex;
             Collapse();
@@ -56,6 +59,7 @@ namespace Rubrehose.UI
         private void OnDisable()
         {
             if (worldCamera != null) worldCamera.OnSettled -= HandleSettled;
+            if (GameManager.Instance != null) GameManager.Instance.OnStateChanged -= RefreshLiveTellBadges;
         }
 
         private void HandleSettled(int previousCoveIndex, int newCoveIndex)
@@ -69,6 +73,26 @@ namespace Rubrehose.UI
             collapsedLabel.text = WreckBeachData.CoveNames[_settledCoveIndex];
             if (_settledCoveIndex < coveThumbnails.Length && coveThumbnails[_settledCoveIndex] != null)
                 collapsedThumbnail.sprite = coveThumbnails[_settledCoveIndex];
+            RefreshLiveTellBadges();
+        }
+
+        // Refreshes both the collapsed handle's "something's live elsewhere" badge and every
+        // currently-built expanded slot's own badge — cheap to call on every OnStateChanged
+        // since it's just a handful of GameObject.SetActive calls.
+        private void RefreshLiveTellBadges()
+        {
+            var gm = GameManager.Instance;
+
+            bool liveElsewhere = false;
+            int unlockedCount = Mathf.Clamp(gm.State.coveIndex + 1, 1, WreckBeachData.CoveNames.Length);
+            for (int i = 0; i < unlockedCount; i++)
+            {
+                if (i != _settledCoveIndex && gm.CoveHasLiveTell(i)) liveElsewhere = true;
+            }
+            if (collapsedLiveTellBadge != null) collapsedLiveTellBadge.SetActive(liveElsewhere);
+
+            for (int i = 0; i < _slots.Count; i++)
+                _slots[i].SetLiveTellBadge(gm.CoveHasLiveTell(i));
         }
 
         public void Expand()
@@ -94,7 +118,7 @@ namespace Rubrehose.UI
             {
                 var slot = Instantiate(slotPrefab, slotContainer);
                 var sprite = i < coveThumbnails.Length ? coveThumbnails[i] : null;
-                slot.Bind(i, WreckBeachData.CoveNames[i], sprite, i == _settledCoveIndex, FastTravelTo);
+                slot.Bind(i, WreckBeachData.CoveNames[i], sprite, i == _settledCoveIndex, GameManager.Instance.CoveHasLiveTell(i), FastTravelTo);
                 _slots.Add(slot);
             }
         }

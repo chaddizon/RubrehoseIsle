@@ -21,6 +21,25 @@ namespace Rubrehose.Core
         public int stage;
     }
 
+    // One rarity tier's Compass Shard counts (NEXT_CLAUDE_CODE_PUSH.md §1 "Artifacts system").
+    // unappraisedCount = found but not yet appraised (browsed in Menu -> Artifacts, not yet
+    // spendable); appraisedCount = spendable currency for that tier's Artifact tree nodes.
+    [Serializable]
+    public class ShardStack
+    {
+        public string tier; // Rubrehose.Data.RarityTier.* constant
+        public int unappraisedCount;
+        public int appraisedCount;
+    }
+
+    // Whether one Artifact tree node has been purchased — permanent once true, never resets.
+    [Serializable]
+    public class ArtifactNodeState
+    {
+        public string id;
+        public bool purchased;
+    }
+
     [Serializable]
     public class PlayerState
     {
@@ -91,5 +110,13 @@ namespace Rubrehose.Core
         // this doesn't need to grow in lockstep with a central enum as more coves' buildings
         // get designed. Entries are created lazily on first payment (GameManager.GetOrCreateBuildingState).
         public List<BuildingState> buildings = new List<BuildingState>();
+
+        // Artifacts progress (NEXT_CLAUDE_CODE_PUSH.md §1) — account-wide, not per-cove
+        // (deliberate split from Cove Buildings, which are per-cove). Entries created lazily
+        // on first find/purchase (GameManager's GetOrCreateShardStack), same List-not-fixed-
+        // array reasoning as buildings/crew above. Per-cove tell-spawn timers/live state are
+        // deliberately NOT persisted here — see TellSpawner.cs's class comment for why.
+        public List<ShardStack> shardStacks = new List<ShardStack>();
+        public List<ArtifactNodeState> artifactNodes = new List<ArtifactNodeState>();
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Rubrehose.CameraControl;
@@ -204,6 +205,14 @@ namespace Rubrehose.EditorTools
         private static readonly Vector2 BBCHomeSpotAnchor = new Vector2(0.55f, 0.42f);
         private static readonly Vector2 SerpentAnchor = new Vector2(0.90f, 0.48f);
 
+        // Artifacts tell spots (NEXT_CLAUDE_CODE_PUSH.md §1a) — open sky/dune area, clear of
+        // every other cluster's anchors.
+        private static readonly Vector2[] TellAnchors =
+        {
+            new Vector2(0.30f, 0.15f),
+            new Vector2(0.70f, 0.20f),
+        };
+
         // Forced-perspective depth cue for BBCHomeSpot's hillside placement: smaller apparent
         // size reads as farther up/back on the hill. CreateWorldSprite's uniformScale param
         // already supports this per-object override — every other anchor in this file just
@@ -260,6 +269,8 @@ namespace Rubrehose.EditorTools
                 AnchorToWorld(BBWHomeSpotAnchor),
                 AnchorToWorld(BBCHomeSpotAnchor),
                 AnchorToWorld(SerpentAnchor),
+                AnchorToWorld(TellAnchors[0]),
+                AnchorToWorld(TellAnchors[1]),
             };
 
             BuildBackground(root.transform);
@@ -268,6 +279,7 @@ namespace Rubrehose.EditorTools
             BuildCampCluster(root.transform, clickablePositions);
             BuildFrontierCluster(root.transform, clickablePositions);
             BuildRoamingCritter(root.transform, clickablePositions);
+            BuildArtifactsCluster(root.transform, clickablePositions);
 
             EnsureEventSystem(); // harmless if a Canvas already added one; OnMouseDown itself doesn't need it
             Undo.CollapseUndoOperations(undoGroup);
@@ -464,6 +476,43 @@ namespace Rubrehose.EditorTools
             hutStagesProp.GetArrayElementAtIndex(2).objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(HutStage3SpritePath);
             hutVisualSo.ApplyModifiedProperties();
 
+            // Build hint marker (NEXT_CLAUDE_CODE_PUSH.md §2) — "obvious" variant for Landing
+            // Cove specifically (icon + label text), since this is the player's first exposure
+            // to the Buildings system. Toggled by BuildHintMarker off the exact same
+            // GetBuildingStage/IsBuildingCoveReached state CoveBuildingVisual reads above, not a
+            // separate tracked flag, so it appears/disappears in lockstep with the Hut's own
+            // zero-presence window.
+            var buildHintRoot = new GameObject("BuildHint");
+            Undo.RegisterCreatedObjectUndo(buildHintRoot, "Build Landing Cove");
+            buildHintRoot.transform.SetParent(hut.transform, false);
+            buildHintRoot.transform.localPosition = new Vector3(0f, 0.9f, 0f); // floats above the (currently invisible) Hut
+
+            var buildHintIcon = buildHintRoot.AddComponent<SpriteRenderer>();
+            buildHintIcon.sprite = CircleSprite();
+            buildHintIcon.color = TealAccent;
+            buildHintIcon.sortingOrder = 3; // above the Hut's own sortingOrder (0)
+
+            var buildHintLabelGo = new GameObject("Label");
+            Undo.RegisterCreatedObjectUndo(buildHintLabelGo, "Build Landing Cove");
+            buildHintLabelGo.transform.SetParent(buildHintRoot.transform, false);
+            buildHintLabelGo.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+            var buildHintLabel = buildHintLabelGo.AddComponent<TextMeshPro>();
+            buildHintLabel.text = "Something can be built here!";
+            buildHintLabel.fontSize = 3;
+            buildHintLabel.color = CreamColor;
+            buildHintLabel.alignment = TextAlignmentOptions.Center;
+            buildHintLabel.enableWordWrapping = true;
+            var buildHintLabelRt = buildHintLabelGo.GetComponent<RectTransform>();
+            if (buildHintLabelRt != null) buildHintLabelRt.sizeDelta = new Vector2(2.2f, 1f);
+            var buildHintLabelMr = buildHintLabelGo.GetComponent<MeshRenderer>();
+            if (buildHintLabelMr != null) buildHintLabelMr.sortingOrder = 3;
+
+            var buildHint = hut.AddComponent<BuildHintMarker>();
+            var buildHintSo = new SerializedObject(buildHint);
+            buildHintSo.FindProperty("buildingId").stringValue = "hut";
+            buildHintSo.FindProperty("iconRoot").objectReferenceValue = buildHintRoot;
+            buildHintSo.ApplyModifiedProperties();
+
             // No collider: purely decorative, never included in clickablePositions.
             var campfireSprites = System.Array.ConvertAll(CampfireSpritePaths, AssetDatabase.LoadAssetAtPath<Sprite>);
             var campfire = CreateWorldSprite("Campfire", cluster.transform, AnchorToWorld(CampfireAnchor), 1f, campfireSprites[0], Color.white, 1, showDebugLabel: false);
@@ -588,6 +637,44 @@ namespace Rubrehose.EditorTools
             var critter = CreateWorldSprite("HermitCrab", parent, critterPos, 0.6f, CircleSprite(), PlaceholderThumbColor, 2);
             var critterCollider = AddFittedBoxCollider2D(critter);
             CapColliderToNearestNeighbor(critterCollider, critterPos, clickablePositions);
+        }
+
+        // Artifacts tell spots (NEXT_CLAUDE_CODE_PUSH.md §1a) — dormant idle-loop placeholders
+        // (Chad's real per-cove art pass isn't done yet) with a placeholder "live glint" overlay
+        // child, each wrapped by a TellSpot. One TellSpawner cycles between them on a randomized
+        // timer; see TellSpawner.cs's class comment re: this NOT being a reuse of any existing
+        // Salvage Crate system (none exists).
+        private static void BuildArtifactsCluster(Transform parent, List<Vector2> clickablePositions)
+        {
+            var cluster = new GameObject("Artifacts");
+            Undo.RegisterCreatedObjectUndo(cluster, "Build Landing Cove");
+            cluster.transform.SetParent(parent, false);
+
+            var tells = new TellSpot[TellAnchors.Length];
+            for (int i = 0; i < TellAnchors.Length; i++)
+            {
+                Vector2 pos = AnchorToWorld(TellAnchors[i]);
+                var spot = CreateWorldSprite($"Tell_{i + 1}", cluster.transform, pos, 0.6f, CircleSprite(), PlaceholderThumbColor, 1);
+                var collider = AddFittedBoxCollider2D(spot);
+                CapColliderToNearestNeighbor(collider, pos, clickablePositions, spot.transform.localScale.x);
+
+                var glint = CreateWorldSprite("LiveGlint", spot.transform, Vector2.zero, 1.2f, SquareSprite(), TealAccent, 2, showDebugLabel: false);
+                glint.SetActive(false);
+
+                var tellSpot = spot.AddComponent<TellSpot>();
+                var tellSo = new SerializedObject(tellSpot);
+                tellSo.FindProperty("liveGlintOverlay").objectReferenceValue = glint;
+                tellSo.ApplyModifiedProperties();
+                tells[i] = tellSpot;
+            }
+
+            var spawner = cluster.AddComponent<TellSpawner>();
+            var spawnerSo = new SerializedObject(spawner);
+            spawnerSo.FindProperty("coveIndex").intValue = 0; // Landing Cove
+            var tellsProp = spawnerSo.FindProperty("tells");
+            tellsProp.arraySize = tells.Length;
+            for (int i = 0; i < tells.Length; i++) tellsProp.GetArrayElementAtIndex(i).objectReferenceValue = tells[i];
+            spawnerSo.ApplyModifiedProperties();
         }
 
         // The artwork-matched anchors above aren't evenly spaced (they're dictated by where

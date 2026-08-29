@@ -1,12 +1,14 @@
 namespace Rubrehose.Data
 {
     // Wreck Beach's 4 coves ARE the entire base game now (CORE_PROGRESSION_RESTRUCTURE.md
-    // "The core change") — not a tutorial leading into 5 more biomes. Cove/serpent names
-    // match the doc's unlock table; only Landing Cove (index 0) has real world geometry so
-    // far (LandingCoveBuilder.cs). Tide Pools/Foraging Grounds are the doc's own working
-    // names, "open to change"; the 4th cove's name is explicitly left blank by the doc
-    // ("needs a name") — "The Deep" below is a placeholder, not a creative decision, same
-    // for its serpent's "Leviathan".
+    // "The core change") — not a tutorial leading into 5 more biomes. Cove names match the
+    // doc's locked table (The Grove/The Deep Reef were locked 2026-08-27, updated here
+    // 2026-08-29 — this had been flagged as a stale-vs-doc inconsistency since Tide Pools was
+    // built and is now resolved). "Leviathan" for the endless cove's base serpent name is
+    // still a placeholder — the doc's real serpent-tier flavor names
+    // (Hatchling -> Shoal-back -> Tide-coiled -> Bramblefang -> Storm-wound -> Cave-blind ->
+    // Abyssal Coil) aren't wired to serpentLevel milestones yet, deliberately deferred per the
+    // doc ("needs a milestone table once real pacing data exists").
     public static class WreckBeachData
     {
         public const int BiomeIndex = 0;
@@ -18,7 +20,7 @@ namespace Rubrehose.Data
         // sized 3) — mini-boss defeat now advances coveIndex immediately, no separate
         // construction-gate payment step (removed 2026-08-27, see
         // CORE_PROGRESSION_RESTRUCTURE.md).
-        public static readonly string[] CoveNames = { "Landing Cove", "Tide Pools", "Foraging Grounds", "The Deep" };
+        public static readonly string[] CoveNames = { "Landing Cove", "Tide Pools", "The Grove", "The Deep Reef" };
         public static readonly string[] SerpentNames = { "Hatchling", "Hatchling", "Shoal-back", "Leviathan" };
     }
 }
