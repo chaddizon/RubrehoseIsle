@@ -69,19 +69,29 @@ namespace Rubrehose.Core
         // (GameManager.RegisterMiniBossDefeat) — no separate reveal/payment step anymore.
         public bool[] coveMinibossDefeated = new bool[3];
 
-        // Current cove's mini-boss fight state (rubrehose_prototype.html, matching
-        // Obelisk's exact model): HP persists across attempts within a cove and only
-        // resets on advancing to a fresh cove — never on retreat/timeout. -1 = boss not
-        // yet encountered this cove (set to full HP on the first attempt). Also used for
-        // the endless cove: a kill there resets this back to -1 so the next attempt arms
-        // the new (tougher) level's full HP, rather than meaning "permanently defeated".
-        public double bossHpRemaining = -1;
+        // Per-cove mini-boss fight state (rubrehose_prototype.html, matching Obelisk's exact
+        // model): HP persists across attempts within a cove and only resets on advancing to a
+        // fresh cove — never on retreat/timeout. -1 = boss not yet encountered this cove (set
+        // to full HP on the first attempt). Index 3 (endless cove) resets its own slot back to
+        // -1 on every kill so the next attempt arms the new (tougher) level's full HP, rather
+        // than meaning "permanently defeated".
+        //
+        // Sized 4 (one per WreckBeachData.CoveNames entry) and indexed by whichever cove's
+        // FightController is asking (FightController.coveIndex) — NOT by
+        // GameManager.State.coveIndex (the navigation frontier). Those two used to be
+        // conflated into a single shared field/value here, which broke the instant more than
+        // one cove's serpent coexisted in the scene: tapping an already-passed cove's serpent
+        // would read/write whichever cove the frontier currently pointed at instead of that
+        // serpent's own cove (2026-08-29 bug fix — see GameManager.cs's Cove/mini-boss section
+        // for the corresponding per-cove API).
+        public double[] bossHpRemainingByCove = { -1, -1, -1, -1 };
 
-        // Real seconds remaining before the next fight attempt is allowed. Set to
-        // GameFormulas.FightCooldownSeconds on retreat/timeout (not on defeat — no
-        // cooldown once the boss is dead, or immediately after an endless-cove kill),
-        // ticked down in GameManager.Update().
-        public float fightCooldownSeconds;
+        // Real seconds remaining before each cove's next fight attempt is allowed. Set to
+        // GameFormulas.FightCooldownSeconds on retreat/timeout (not on defeat — no cooldown
+        // once that cove's boss is dead, or immediately after an endless-cove kill), ticked
+        // down per-cove in GameManager.Update(). Same per-cove-indexing fix as
+        // bossHpRemainingByCove above, same reason.
+        public float[] fightCooldownSecondsByCove = new float[4];
 
         // Cove 4's persistent "Obelisk" counter (CORE_PROGRESSION_RESTRUCTURE.md "Cove 4's
         // serpent") — only ever increments, never resets, and drives

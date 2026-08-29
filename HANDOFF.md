@@ -17,6 +17,34 @@ validated world geometry; **Tide Pools** (cove 1) and **The Grove** (cove 2) hav
 scene content built but not yet visually tuned in Play mode; **The Deep Reef** (cove 3)
 doesn't exist in Unity yet.
 
+## ⚠️ Critical bug fixed 2026-08-29 (post-push playtest) — READ if touching fight code
+
+Chad found this immediately on testing: defeating Landing Cove's serpent while already
+progressed past it (or generally, any cove's fight state) was reading/writing whichever cove
+`GameManager.State.coveIndex` (the navigation frontier) currently pointed at, **not** the
+specific serpent actually tapped. Once multiple coves' serpents coexisted in the loaded scene
+(as of Tide Pools/The Grove existing), this caused: an already-defeated cove's serpent
+appearing alive again (`SerpentVisual` was checking the frontier cove's defeated flag, not its
+own), and defeating it "for real" then incorrectly marking a *different* cove defeated and
+skipping the frontier past an untouched cove entirely.
+
+**Fix**: `PlayerState.bossHpRemaining`/`fightCooldownSeconds` (single shared fields) are now
+`bossHpRemainingByCove`/`fightCooldownSecondsByCove` (arrays, one slot per cove).
+`GameManager`'s entire fight API (`CoveHp`, `CoveArmor`, `CoveMinibossDefeated`,
+`BossHpRemaining`, `CanAttemptFight`, `BeginFightAttempt`, `ApplyFightDamage`,
+`EndFightAttempt`, `RegisterMiniBossDefeat`) now takes an explicit `int cove` parameter
+instead of reading `State.coveIndex` implicitly. `FightController` and `SerpentVisual` both
+gained a `[SerializeField] private int coveIndex`, wired per-cove by each builder
+(Landing/TidePools/Grove) — this is genuinely a different number from
+`GameManager.State.coveIndex` and the two must never be conflated again.
+
+**Manual step required**: existing baked `Serpent` GameObjects in the scene don't have this
+new field set (defaults to 0) until rebuilt. **Re-run Build Landing Cove, Build Tide Pools,
+and Build The Grove, all three**, before testing again. Also note: any save file with
+in-progress fight HP from before this fix will read as fresh (the old single shared field no
+longer exists, so JSON deserialization just drops it and the new per-cove arrays start at
+their sentinel defaults) — acceptable data loss, not a real player save yet.
+
 ## The current progression shape (read this before touching cove/fight code)
 
 **Correction (2026-08-29, from Chad directly — supersedes a framing mistake made earlier the

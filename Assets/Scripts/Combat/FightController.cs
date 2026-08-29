@@ -25,7 +25,9 @@ namespace Rubrehose.Combat
     [RequireComponent(typeof(Collider2D))]
     public class FightController : MonoBehaviour
     {
-        [Header("World refs (wired by LandingCoveBuilder)")]
+        [Header("World refs (wired by each cove's builder)")]
+        [Tooltip("Which cove this serpent belongs to — must match SerpentVisual.coveIndex on the same object. NOT the same thing as GameManager.State.coveIndex (the navigation frontier); see GameManager.cs's Cove/mini-boss section comment.")]
+        [SerializeField] private int coveIndex;
         [SerializeField] private SerpentVisual serpentVisual;
 
         [Header("Overlay UI refs (wired by FightOverlayBuilder)")]
@@ -89,21 +91,21 @@ namespace Rubrehose.Combat
         {
             if (_active) return;
             var gm = GameManager.Instance;
-            if (!gm.CanAttemptFight) return; // defeated or still on cooldown
+            if (!gm.CanAttemptFight(coveIndex)) return; // defeated or still on cooldown
 
-            gm.BeginFightAttempt(); // sets full HP only on this cove's first-ever attempt
-            _hpMax = gm.CoveHp;
-            _armor = gm.CoveArmor;
+            gm.BeginFightAttempt(coveIndex); // sets full HP only on this cove's first-ever attempt
+            _hpMax = gm.CoveHp(coveIndex);
+            _armor = gm.CoveArmor(coveIndex);
             _timeLeft = GameFormulas.FightDurationSeconds;
             SetActive(true);
 
-            _hpTargetFraction = Mathf.Clamp01((float)(gm.BossHpRemaining / _hpMax));
+            _hpTargetFraction = Mathf.Clamp01((float)(gm.BossHpRemaining(coveIndex) / _hpMax));
             _hpDisplayedFraction = _hpTargetFraction;
 
             if (serpentNameText != null)
             {
-                string baseName = WreckBeachData.SerpentNames[gm.State.coveIndex];
-                serpentNameText.text = gm.IsEndlessCove(gm.State.coveIndex) ? $"{baseName} · Lv {gm.SerpentLevel}" : baseName;
+                string baseName = WreckBeachData.SerpentNames[coveIndex];
+                serpentNameText.text = gm.IsEndlessCove(coveIndex) ? $"{baseName} · Lv {gm.SerpentLevel}" : baseName;
             }
             UpdateStatsText(gm);
             if (hpSlider != null) hpSlider.value = _hpDisplayedFraction;
@@ -158,9 +160,9 @@ namespace Rubrehose.Combat
 
             if (dmg > 0)
             {
-                defeated = gm.ApplyFightDamage(dmg);
+                defeated = gm.ApplyFightDamage(coveIndex, dmg);
                 if (serpentVisual != null) serpentVisual.PlayHitFlash();
-                _hpTargetFraction = defeated ? 0f : Mathf.Clamp01((float)(gm.BossHpRemaining / _hpMax));
+                _hpTargetFraction = defeated ? 0f : Mathf.Clamp01((float)(gm.BossHpRemaining(coveIndex) / _hpMax));
                 UpdateStatsText(gm, defeated);
             }
 
@@ -173,7 +175,7 @@ namespace Rubrehose.Combat
                 {
                     // Endless cove: same kill tween, but the serpent resets to dormant
                     // (ready to fight again at the new level) instead of vanishing for good.
-                    if (gm.IsEndlessCove(gm.State.coveIndex)) serpentVisual.PlayDefeatAndRespawn();
+                    if (gm.IsEndlessCove(coveIndex)) serpentVisual.PlayDefeatAndRespawn();
                     else serpentVisual.PlayDefeat();
                 }
                 Invoke(nameof(CloseOverlay), endLingerSeconds);
@@ -191,7 +193,7 @@ namespace Rubrehose.Combat
 
         private void EndAttemptAndCloseOverlay()
         {
-            GameManager.Instance.EndFightAttempt();
+            GameManager.Instance.EndFightAttempt(coveIndex);
             CloseOverlay();
         }
 
@@ -218,7 +220,7 @@ namespace Rubrehose.Combat
         private void UpdateStatsText(GameManager gm, bool forceZeroHp = false)
         {
             if (statsText == null) return;
-            double hp = forceZeroHp ? 0 : gm.BossHpRemaining;
+            double hp = forceZeroHp ? 0 : gm.BossHpRemaining(coveIndex);
             statsText.text = $"HP {Format.Number(hp)} / {Format.Number(_hpMax)} · Armor {Format.Number(_armor)}";
         }
 

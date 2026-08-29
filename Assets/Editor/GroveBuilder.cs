@@ -204,11 +204,13 @@ namespace Rubrehose.EditorTools
 
             var serpentVisual = serpent.AddComponent<SerpentVisual>();
             var serpentVisualSo = new SerializedObject(serpentVisual);
+            serpentVisualSo.FindProperty("coveIndex").intValue = CoveIndex;
             serpentVisualSo.FindProperty("spriteRenderer").objectReferenceValue = serpent.GetComponent<SpriteRenderer>();
             serpentVisualSo.ApplyModifiedProperties();
 
             var fightController = serpent.AddComponent<FightController>();
             var fightControllerSo = new SerializedObject(fightController);
+            fightControllerSo.FindProperty("coveIndex").intValue = CoveIndex;
             fightControllerSo.FindProperty("serpentVisual").objectReferenceValue = serpentVisual;
             fightControllerSo.ApplyModifiedProperties();
         }

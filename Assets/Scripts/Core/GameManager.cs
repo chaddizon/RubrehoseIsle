@@ -69,12 +69,17 @@ namespace Rubrehose.Core
             float elapsed = _tickTimer;
             _tickTimer = 0f;
 
-            // Real-time fight cooldown — ticks whether or not the fight modal is open.
-            if (State.fightCooldownSeconds > 0f)
+            // Real-time fight cooldown, per cove — ticks whether or not a fight overlay is
+            // open, for every cove independently (2026-08-29: was a single shared field, see
+            // PlayerState.fightCooldownSecondsByCove's comment).
+            bool anyCooldownTicked = false;
+            for (int i = 0; i < State.fightCooldownSecondsByCove.Length; i++)
             {
-                State.fightCooldownSeconds = Mathf.Max(0f, State.fightCooldownSeconds - elapsed);
-                RaiseChanged();
+                if (State.fightCooldownSecondsByCove[i] <= 0f) continue;
+                State.fightCooldownSecondsByCove[i] = Mathf.Max(0f, State.fightCooldownSecondsByCove[i] - elapsed);
+                anyCooldownTicked = true;
             }
+            if (anyCooldownTicked) RaiseChanged();
 
             double total = 0;
             foreach (var c in State.crew) total += CrewRate(c);
@@ -206,33 +211,47 @@ namespace Rubrehose.Core
         private int EffectiveSerpentLevel => Math.Max(1, State.serpentLevel);
         public int SerpentLevel => EffectiveSerpentLevel;
 
-        public double CoveHp => IsEndlessCove(State.coveIndex)
-            ? GameFormulas.SerpentHpForLevel(EffectiveSerpentLevel)
-            : GameFormulas.SerpentHp(State.coveIndex);
+        // Every method below takes an explicit cove index — the calling FightController's own
+        // coveIndex — rather than reading State.coveIndex (the navigation frontier). Those two
+        // are NOT the same thing: State.coveIndex is "how far the player has progressed,"
+        // while these methods are about "which specific serpent is being fought right now."
+        // They used to be conflated (every method here implicitly used State.coveIndex), which
+        // worked only by coincidence while just one cove's serpent ever existed in the scene.
+        // Once Tide Pools/The Grove's serpents coexisted alongside Landing Cove's, tapping an
+        // already-defeated cove's serpent (still present, just supposed to be visually
+        // "defeated") would read/write whichever cove State.coveIndex currently pointed at
+        // instead — e.g. re-"defeating" Landing Cove's serpent while State.coveIndex had
+        // already moved to Tide Pools would incorrectly mark Tide Pools defeated and skip the
+        // frontier straight to The Grove. Fixed 2026-08-29.
 
-        public double CoveArmor => IsEndlessCove(State.coveIndex)
+        public double CoveHp(int cove) => IsEndlessCove(cove)
+            ? GameFormulas.SerpentHpForLevel(EffectiveSerpentLevel)
+            : GameFormulas.SerpentHp(cove);
+
+        public double CoveArmor(int cove) => IsEndlessCove(cove)
             ? GameFormulas.SerpentArmorForLevel(EffectiveSerpentLevel)
-            : GameFormulas.SerpentArmor(State.coveIndex);
+            : GameFormulas.SerpentArmor(cove);
 
         // Always false for the endless cove — it's never "permanently" defeated, only ever
         // leveled up (RegisterSerpentLevelUp). Guards the coveMinibossDefeated array access,
         // which is sized only for the 3 finite coves.
-        public bool CoveMinibossDefeated => !IsEndlessCove(State.coveIndex) && State.coveMinibossDefeated[State.coveIndex];
+        public bool CoveMinibossDefeated(int cove) => !IsEndlessCove(cove) && State.coveMinibossDefeated[cove];
 
-        // HP persists in State.bossHpRemaining across attempts; falls back to full HP
-        // before the first-ever attempt on this cove (sentinel -1). Also what re-arms the
-        // endless cove's next level after a kill (RegisterSerpentLevelUp resets the sentinel).
-        public double BossHpRemaining => State.bossHpRemaining < 0 ? CoveHp : State.bossHpRemaining;
+        // HP persists in State.bossHpRemainingByCove[cove] across attempts; falls back to full
+        // HP before the first-ever attempt on this cove (sentinel -1). Also what re-arms the
+        // endless cove's next level after a kill (RegisterSerpentLevelUp resets that sentinel).
+        public double BossHpRemaining(int cove) => State.bossHpRemainingByCove[cove] < 0 ? CoveHp(cove) : State.bossHpRemainingByCove[cove];
 
-        // No clears-needed counter, no attempt limit — the only gate is this cooldown
-        // (started on retreat/timeout, never on defeat) and whether the boss is already dead.
-        // For the endless cove CoveMinibossDefeated is always false, so this only ever gates
-        // on cooldown there — matching "unlimited attempts" for an unkillable-for-good boss.
-        public bool CanAttemptFight => !CoveMinibossDefeated && State.fightCooldownSeconds <= 0f;
+        // No clears-needed counter, no attempt limit — the only gate is this cove's own
+        // cooldown (started on retreat/timeout, never on defeat) and whether its boss is
+        // already dead. For the endless cove CoveMinibossDefeated is always false, so this
+        // only ever gates on cooldown there — matching "unlimited attempts" for an
+        // unkillable-for-good boss.
+        public bool CanAttemptFight(int cove) => !CoveMinibossDefeated(cove) && State.fightCooldownSecondsByCove[cove] <= 0f;
 
-        public void BeginFightAttempt()
+        public void BeginFightAttempt(int cove)
         {
-            if (State.bossHpRemaining < 0) State.bossHpRemaining = CoveHp; // first-ever encounter this cove/level
+            if (State.bossHpRemainingByCove[cove] < 0) State.bossHpRemainingByCove[cove] = CoveHp(cove); // first-ever encounter this cove/level
         }
 
         // Damage always applies (Attack() itself already refuses to call this when tap power
@@ -241,24 +260,24 @@ namespace Rubrehose.Core
         // FightController can react (defeat visual, ending the attempt) without needing to
         // separately re-derive it from CoveMinibossDefeated — which stays permanently false
         // for the endless cove and so can't signal "defeated this hit" there.
-        public bool ApplyFightDamage(double dmg)
+        public bool ApplyFightDamage(int cove, double dmg)
         {
-            State.bossHpRemaining = Math.Max(0, State.bossHpRemaining - dmg);
-            if (State.bossHpRemaining <= 0)
+            State.bossHpRemainingByCove[cove] = Math.Max(0, State.bossHpRemainingByCove[cove] - dmg);
+            if (State.bossHpRemainingByCove[cove] <= 0)
             {
-                if (IsEndlessCove(State.coveIndex)) RegisterSerpentLevelUp();
-                else RegisterMiniBossDefeat();
+                if (IsEndlessCove(cove)) RegisterSerpentLevelUp();
+                else RegisterMiniBossDefeat(cove);
                 return true;
             }
             RaiseChanged();
             return false;
         }
 
-        // Called on retreat or fight-timer timeout — never on defeat. Starts the real
+        // Called on retreat or fight-timer timeout — never on defeat. Starts that cove's real
         // 20-minute cooldown; HP already persisted via ApplyFightDamage, so nothing here.
-        public void EndFightAttempt()
+        public void EndFightAttempt(int cove)
         {
-            if (!CoveMinibossDefeated) State.fightCooldownSeconds = GameFormulas.FightCooldownSeconds;
+            if (!CoveMinibossDefeated(cove)) State.fightCooldownSecondsByCove[cove] = GameFormulas.FightCooldownSeconds;
             RaiseChanged();
         }
 
@@ -268,12 +287,11 @@ namespace Rubrehose.Core
         // needing a bridge built between them). No clears-needed counter, no driftwood reward
         // either (the old SerpentClearReward was explicitly retired alongside the construction
         // gate, not retuned — the cove unlock itself is the reward). Re-beating an
-        // already-defeated mini-boss (shouldn't happen once CanAttemptFight gates it, but kept
-        // safe) does nothing further. Finite coves (0-2) only — the endless cove uses
-        // RegisterSerpentLevelUp instead.
-        public void RegisterMiniBossDefeat()
+        // already-defeated mini-boss (shouldn't happen once CanAttemptFight/SerpentVisual's
+        // disabled collider gate it, but kept safe) does nothing further. Finite coves (0-2)
+        // only — the endless cove uses RegisterSerpentLevelUp instead.
+        public void RegisterMiniBossDefeat(int cove)
         {
-            int cove = State.coveIndex;
             if (State.coveMinibossDefeated[cove])
             {
                 RaiseChanged();
@@ -283,10 +301,19 @@ namespace Rubrehose.Core
             State.coveMinibossDefeated[cove] = true;
             State.totalClears++;
 
+            // Only the current frontier cove's defeat advances the frontier — with fight state
+            // now fully per-cove, defeating anything other than the current frontier cove
+            // shouldn't be reachable at all (an already-defeated cove's collider is disabled by
+            // SerpentVisual), but this stays an explicit, real condition rather than an
+            // assumption baked silently into "any defeat, ever."
+            if (cove != State.coveIndex)
+            {
+                RaiseChanged();
+                return;
+            }
+
             int previousCove = State.coveIndex;
             State.coveIndex++;
-            State.bossHpRemaining = -1; // fresh boss encounter for the new cove
-            State.fightCooldownSeconds = 0f;
 
             if (IsEndlessCove(State.coveIndex))
             {
@@ -301,7 +328,9 @@ namespace Rubrehose.Core
         // Cove 4's serpent never stays "defeated" (CORE_PROGRESSION_RESTRUCTURE.md "Cove 4's
         // serpent") — beating it at the current level pays a reward, bumps the persistent
         // serpentLevel counter, and re-arms the HP sentinel so the next attempt (no cooldown
-        // required — see EndFightAttempt) starts fresh against the next, tougher level.
+        // required — see EndFightAttempt) starts fresh against the next, tougher level. No
+        // cove parameter needed: there's only ever one endless-cove serpent, always at the
+        // last index.
         public void RegisterSerpentLevelUp()
         {
             double reward = GameFormulas.SerpentLevelClearReward(EffectiveSerpentLevel);
@@ -310,7 +339,7 @@ namespace Rubrehose.Core
             State.totalClears++;
 
             State.serpentLevel = EffectiveSerpentLevel + 1;
-            State.bossHpRemaining = -1; // sentinel: next BeginFightAttempt arms the new level's full HP
+            State.bossHpRemainingByCove[WreckBeachData.CoveNames.Length - 1] = -1; // sentinel: next BeginFightAttempt arms the new level's full HP
             RaiseChanged();
         }
 

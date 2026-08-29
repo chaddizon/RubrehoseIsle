@@ -75,11 +75,12 @@ namespace Rubrehose.UI
             biomeTagText.text = WreckBeachData.BiomeName;
 
             bool endless = gm.IsEndlessCove(gm.State.coveIndex);
+            bool frontierDefeated = gm.CoveMinibossDefeated(gm.State.coveIndex);
             string coveStatus = endless
                 ? $"serpent Lv {gm.SerpentLevel}"
-                : (gm.CoveMinibossDefeated ? "mini-boss defeated" : "mini-boss undefeated");
+                : (frontierDefeated ? "mini-boss defeated" : "mini-boss undefeated");
             coveLineText.text = $"{WreckBeachData.CoveNames[gm.State.coveIndex]} · {coveStatus}";
-            coveProgressSlider.value = endless ? 0f : (gm.CoveMinibossDefeated ? 1f : 0f);
+            coveProgressSlider.value = endless ? 0f : (frontierDefeated ? 1f : 0f);
 
             tapAmountText.text = Format.Number(gm.TapPower);
 

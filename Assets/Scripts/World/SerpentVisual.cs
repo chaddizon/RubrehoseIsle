@@ -13,6 +13,8 @@ namespace Rubrehose.World
     [RequireComponent(typeof(SpriteRenderer))]
     public class SerpentVisual : MonoBehaviour
     {
+        [Tooltip("Which cove this serpent belongs to — must match FightController.coveIndex on the same object.")]
+        [SerializeField] private int coveIndex;
         [SerializeField] private SpriteRenderer spriteRenderer;
 
         [Header("Dormant (asleep, not yet engaged)")]
@@ -48,10 +50,14 @@ namespace Rubrehose.World
         // Checked fresh on every enable (not just Awake) so a scene reload after an
         // already-persisted defeat (PlayerState.coveMinibossDefeated) snaps straight to the
         // defeated pose instead of dormant — GameManager.Instance is guaranteed set by now via
-        // its DefaultExecutionOrder(-1000).
+        // its DefaultExecutionOrder(-1000). Reads THIS serpent's own coveIndex, not
+        // GameManager.State.coveIndex (the navigation frontier) — every built cove's serpent
+        // stays loaded simultaneously once the player has moved on, so this has to check its
+        // own cove's flag specifically or an already-defeated serpent would appear alive again
+        // the moment the frontier moves past it (2026-08-29 bug fix).
         private void OnEnable()
         {
-            _defeated = GameManager.Instance.CoveMinibossDefeated;
+            _defeated = GameManager.Instance.CoveMinibossDefeated(coveIndex);
             if (_defeated) SetDefeatedImmediate();
             else SetDormantImmediate();
         }
